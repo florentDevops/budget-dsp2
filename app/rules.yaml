@@ -1,0 +1,24 @@
+# Règles évaluées dans l'ordre sur le libellé nettoyé (majuscules, sans accents).
+# La première règle qui matche gagne : mets les plus spécifiques en haut.
+# pattern = expression régulière Python.
+
+- {pattern: "LIVRET|ASSURANCE VIE|\\bPEA\\b|EPARGNE|PER INDIVIDUEL", category: epargne}
+- {pattern: "SALAIRE|\\bPAIE\\b|\\bCAF\\b|FRANCE TRAVAIL|POLE EMPLOI|CPAM REMB", category: revenus}
+- {pattern: "LOYER|FONCIA|NEXITY|CITYA|SYNDIC|ORPI GESTION", category: logement}
+- {pattern: "\\bEDF\\b|ENGIE|TOTALENERGIES|TOTAL ENERGIES|EKWATEUR|MINT ENERGIE|VEOLIA|SUEZ|EAU DE ", category: energie}
+- {pattern: "CARREFOUR|LECLERC|AUCHAN|INTERMARCHE|\\bLIDL\\b|\\bALDI\\b|MONOPRIX|FRANPRIX|CASINO|SUPER U|HYPER U|PICARD|GRAND FRAIS|NATURALIA|BIOCOOP|BOULANGERIE", category: courses}
+- {pattern: "PHARMACIE|DOCTOLIB|MUTUELLE|DENTISTE|OPTIC|LABORATOIRE|KINE", category: sante}
+- {pattern: "\\bAXA\\b|\\bMAIF\\b|MACIF|MATMUT|ALLIANZ|\\bGMF\\b|GROUPAMA|ASSURANCE", category: assurance}
+- {pattern: "UBER ?EATS|DELIVEROO|JUST EAT|FRICHTI", category: livraison}
+- {pattern: "\\bSNCF\\b|\\bRATP\\b|NAVIGO|\\bTOTAL\\b|\\bESSO\\b|\\bSHELL\\b|\\bBP\\b|\\bAVIA\\b|PEAGE|VINCI AUTO|SANEF|APRR|BLABLACAR|PARKING|INDIGO|\\bUBER\\b|\\bBOLT\\b|\\bG7\\b|TAXI|\\bLIME\\b", category: transport}
+- {pattern: "ORANGE|\\bSFR\\b|BOUYGUES|FREE MOBILE|FREE TELECOM|\\bSOSH\\b|RED BY SFR|B AND YOU", category: telecom}
+- {pattern: "NETFLIX|SPOTIFY|DEEZER|DISNEY|CANAL\\+|CANALPLUS|AMAZON PRIME|PRIME VIDEO|APPLE\\.COM|ICLOUD|GOOGLE ONE|YOUTUBE|PARAMOUNT|OPENAI|CHATGPT|ANTHROPIC|ADOBE|MICROSOFT 365|BASIC.?FIT|FITNESS PARK|NEONESS|KEEP COOL|AUDIBLE", category: abonnements}
+- {pattern: "MCDONALD|MC DO|BURGER KING|\\bKFC\\b|STARBUCKS|COLUMBUS|\\bPAUL\\b|BRIOCHE DOREE|RESTAU|BRASSERIE|PIZZ|SUSHI|\\bCAFE\\b|BISTRO|\\bBAR\\b", category: restaurants}
+- {pattern: "CINEMA|\\bUGC\\b|PATHE|GAUMONT|\\bMK2\\b|FNAC SPECTACLE|TICKETMASTER|STEAM|PLAYSTATION|NINTENDO|XBOX|DECATHLON PASS", category: loisirs}
+- {pattern: "AMAZON|\\bFNAC\\b|DARTY|BOULANGER|\\bZARA\\b|\\bH ?& ?M\\b|DECATHLON|IKEA|LEROY MERLIN|SEPHORA|SHEIN|VINTED|ZALANDO|ALIEXPRESS|CDISCOUNT|CELIO|KIABI|\\bACTION\\b", category: shopping}
+- {pattern: "AIRBNB|BOOKING|AIR FRANCE|EASYJET|RYANAIR|TRANSAVIA|VUELING|HOTEL|ACCOR", category: voyages}
+- {pattern: "FRAIS|COTISATION|COMMISSION|AGIOS|INTERETS DEBITEURS|COM INTERVENTION|OFFRE GROUPEE", category: frais_bancaires}
+- {pattern: "DGFIP|IMPOT|TRESOR PUBLIC|AMENDE|ANTAI", category: impots}
+- {pattern: "ECOLE|CANTINE|CRECHE|UNIVERSITE|UDEMY|COURSERA", category: education}
+- {pattern: "RETRAIT|\\bDAB\\b|\\bGAB\\b", category: retraits}
+- {pattern: "^VIR\\b|VIREMENT", category: virements}

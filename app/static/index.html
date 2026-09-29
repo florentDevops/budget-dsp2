@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Budget</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #EEF1F0;
+  --surface: #FFFFFF;
+  --ink: #1B2A33;
+  --muted: #5F6D75;
+  --rule: #D5DCD9;
+  --keep: #2E7359;
+  --save: #3E6AA8;
+  --marker: #FFE14D;
+  --unknown: #A7B0B5;
+  --danger: #A33A2A;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #131C21;
+    --surface: #1B262D;
+    --ink: #E4EAEC;
+    --muted: #93A1A8;
+    --rule: #2B3A42;
+    --keep: #5DB38C;
+    --save: #80A7E0;
+    --marker: rgba(255, 214, 40, .5);
+    --unknown: #5C6A71;
+    --danger: #E8836F;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.5 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+}
+main { max-width: 680px; margin: 0 auto; padding: 20px 18px 64px; }
+h1, h2, p { margin: 0; }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--save); outline-offset: 2px; border-radius: 4px; }
+
+/* En-tête */
+header { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; }
+header h1 { font-size: 1.05rem; font-weight: 600; margin-right: auto; }
+.select, .btn {
+  border: 1px solid var(--rule); background: var(--surface);
+  border-radius: 8px; padding: 7px 12px; cursor: pointer; min-height: 38px;
+}
+.btn-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 500; }
+.btn:disabled { opacity: .5; cursor: wait; }
+
+/* Surligneur : l'élément signature de l'interface */
+.hl {
+  background-image: linear-gradient(transparent 14%, var(--marker) 14%, var(--marker) 90%, transparent 90%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  border-radius: .25em .6em .3em .5em;
+  padding: 0 .22em; margin: 0 -.08em;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.hero .hl { animation: sweep .9s .25s cubic-bezier(.3,.7,.2,1) both; }
+@keyframes sweep { from { background-size: 0% 100%; } }
+@media (prefers-reduced-motion: reduce) { .hero .hl { animation: none; } }
+
+/* Accroche */
+.hero { margin-bottom: 32px; }
+.hero p.lead {
+  font-size: clamp(1.7rem, 6.2vw, 2.45rem); line-height: 1.18;
+  font-weight: 500; letter-spacing: -.015em; max-width: 19ch;
+}
+.hero .hl { font-weight: 600; }
+.hero p.sub { color: var(--muted); margin-top: 14px; max-width: 52ch; }
+
+/* Barre de répartition */
+.split { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 22px 0 10px; background: var(--rule); }
+.split span { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .9rem; color: var(--muted); }
+.legend b { color: var(--ink); font-weight: 500; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+
+section { margin-top: 40px; }
+section h2 { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; }
+section > p.hint { color: var(--muted); font-size: .9rem; margin-bottom: 12px; }
+
+/* Pistes d'économies */
+.insights { list-style: none; padding: 0; margin: 0; background: var(--surface); border-radius: 12px; }
+.insights li { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; padding: 14px 16px; border-top: 1px solid var(--rule); }
+.insights li:first-child { border-top: 0; }
+.insights .t { font-weight: 500; }
+.insights .d { grid-column: 1 / -1; color: var(--muted); font-size: .9rem; max-width: 60ch; }
+.insights .a { text-align: right; font-weight: 500; white-space: nowrap; line-height: 1.3; }
+.insights .y { display: block; color: var(--muted); font-size: .82rem; font-weight: 400; }
+
+/* Filtres */
+.filters { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0 12px; padding-bottom: 2px; }
+.filters button {
+  border: 1px solid var(--rule); background: transparent; border-radius: 999px;
+  padding: 5px 13px; font-size: .9rem; white-space: nowrap; cursor: pointer;
+}
+.filters button span { color: var(--muted); margin-left: 2px; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.filters button[aria-pressed="true"] span { color: inherit; opacity: .7; }
+
+/* Opérations */
+.tx { list-style: none; padding: 0; margin: 0; background: var(--surface); border-radius: 12px; }
+.tx li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 14px; padding: 11px 16px; border-top: 1px solid var(--rule); }
+.tx li:first-child { border-top: 0; }
+.tx .m { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx .meta { grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: .84rem; color: var(--muted); }
+.tx .amt { grid-row: 1 / span 2; grid-column: 2; text-align: right; font-weight: 500; white-space: nowrap; }
+.tx .amt.in { color: var(--keep); }
+.tx select {
+  border: 0; background: transparent; color: var(--muted); font-size: .84rem;
+  padding: 2px 0; cursor: pointer; max-width: 11rem;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.tag { color: var(--ink); }
+.more { display: block; margin: 12px auto 0; }
+
+/* Catégories */
+.cats { list-style: none; padding: 0; margin: 0; }
+.cats li { display: grid; grid-template-columns: 9.5rem 1fr 5.5rem; align-items: center; gap: 12px; padding: 7px 0; font-size: .92rem; }
+.cats .bar { height: 10px; border-radius: 5px; background: var(--rule); overflow: hidden; }
+.cats .bar span { display: block; height: 100%; border-radius: 5px; }
+.cats .v { text-align: right; }
+
+/* États vides et connexion */
+.empty { background: var(--surface); border-radius: 12px; padding: 24px 20px; }
+.empty p { color: var(--muted); margin: 6px 0 18px; max-width: 48ch; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.connect { margin-top: 18px; display: none; gap: 10px; flex-wrap: wrap; }
+.connect.open { display: flex; }
+.connect select { flex: 1 1 14rem; }
+#status {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(640px, calc(100% - 32px)); padding: 10px 14px; border-radius: 10px;
+  background: var(--ink); color: var(--paper); font-size: .9rem;
+}
+#status:empty { display: none; }
+#status.err { background: var(--danger); color: #fff; }
+footer { margin-top: 48px; font-size: .85rem; color: var(--muted); }
+
+@media (max-width: 480px) {
+  header { margin-bottom: 28px; }
+  .cats li { grid-template-columns: 7.5rem 1fr 4.8rem; gap: 8px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Budget</h1>
+    <select id="month" class="select" aria-label="Mois affiché" hidden></select>
+    <button id="add-bank" class="btn" hidden>Connecter ma banque</button>
+    <button id="sync" class="btn" hidden>Synchroniser</button>
+  </header>
+
+  <div id="app"></div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <footer id="footer"></footer>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const eur = (n, d = 0) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: d, minimumFractionDigits: d }).format(n);
+const monthName = (m) => new Date(m + "-01T12:00").toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+const dayLabel = (d) => new Date(d + "T12:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pretty = (m) => m.split(" ").map(w => (w.length <= 3 && /^[A-Z]+$/.test(w)) ? w : w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+
+const NATURE = {
+  essentiel:   { label: "Essentiel",   color: "var(--keep)" },
+  optimisable: { label: "Optimisable", color: "var(--marker)" },
+  epargne:     { label: "Épargne",     color: "var(--save)" },
+  inconnu:     { label: "À classer",   color: "var(--unknown)" },
+};
+const REASONS = { abonnement: "Abonnement", micro: "Micro-dépense répétée", hausse: "Catégorie en hausse", frais: "Frais évitable", contrat: "Contrat à comparer" };
+const FILTERS = [
+  ["all", "Toutes"], ["optimisable", "À optimiser"], ["essentiel", "Essentielles"], ["inconnu", "À classer"], ["in", "Entrées"],
+];
+const DEMO_UID = "demo-compte-courant";
+
+let state = { status: null, categories: [], summary: null, filter: "optimisable", limit: 40 };
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `Erreur ${res.status}`);
+  return body;
+}
+let sayTimer;
+function say(msg, isErr = false) {
+  const s = $("#status"); s.textContent = msg; s.className = isErr ? "err" : "";
+  clearTimeout(sayTimer);
+  if (!isErr) sayTimer = setTimeout(() => { s.textContent = ""; }, 4000);
+}
+
+async function boot() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("error")) say("La connexion à la banque n'a pas abouti. Relance-la depuis « Connecter ma banque ».", true);
+  if (params.get("connected")) say("Banque connectée, opérations importées.");
+  if (params.toString()) history.replaceState({}, "", "/");
+
+  [state.status, state.categories] = await Promise.all([api("/api/status"), api("/api/categories")]);
+  renderFooter();
+  if (!state.status.months.length) return renderEmpty();
+
+  const sel = $("#month");
+  const current = sel.value;
+  sel.innerHTML = state.status.months.map(m => `<option value="${m}">${monthName(m)}</option>`).join("");
+  if (state.status.months.includes(current)) sel.value = current;
+  sel.hidden = false;
+  const hasBank = state.status.accounts.some(a => a.uid !== DEMO_UID);
+  $("#sync").hidden = !hasBank;
+  $("#add-bank").hidden = hasBank || !state.status.bank_enabled;
+  await loadMonth(sel.value);
+}
+
+async function loadMonth(month) {
+  state.summary = await api(`/api/summary?month=${month}`);
+  state.limit = 40;
+  render();
+}
+
+function renderEmpty() {
+  const bank = state.status.bank_enabled;
+  $("#app").innerHTML = `
+    <div class="empty">
+      <h2>Aucune opération pour l'instant</h2>
+      <p>${bank ? "Connecte ton compte pour importer tes opérations, ou explore l'interface avec un relevé fictif."
+                : "Enable Banking n'est pas encore configuré (voir le README). En attendant, charge un relevé fictif de six mois."}</p>
+      <div class="row">
+        ${bank ? `<button class="btn btn-primary" id="open-connect">Connecter ma banque</button>` : ""}
+        <button class="btn" id="demo">Charger la démo</button>
+      </div>
+      <div class="connect" id="connect">
+        <select class="select" id="bank" aria-label="Ta banque"><option>Chargement des banques…</option></select>
+        <button class="btn btn-primary" id="go">Continuer vers ma banque</button>
+      </div>
+    </div>`;
+  $("#demo").onclick = async (e) => {
+    e.target.disabled = true; say("Import et classement du relevé fictif…");
+    const r = await api("/api/demo", { method: "POST" });
+    say(`${r.inserted} opérations fictives importées.`);
+    boot();
+  };
+  if (bank) $("#open-connect").onclick = openConnect;
+}
+
+async function openConnect() {
+  $("#connect").classList.add("open");
+  try {
+    const banks = await api("/api/banks");
+    $("#bank").innerHTML = banks.map(b => `<option>${esc(b.name)}</option>`).join("");
+  } catch (e) { say(e.message, true); }
+  $("#go").onclick = async () => {
+    try {
+      const { url } = await api("/api/connect", { method: "POST", body: JSON.stringify({ bank: $("#bank").value }) });
+      location.href = url;
+    } catch (e) { say(e.message, true); }
+  };
+}
+
+function render() {
+  const s = state.summary;
+  const n = s.by_nature;
+  const parts = ["essentiel", "optimisable", "inconnu", "epargne"].filter(k => n[k] > 0);
+  const total = parts.reduce((a, k) => a + n[k], 0);
+
+  $("#app").innerHTML = `
+    <div class="hero">
+      <p class="lead">En ${monthName(s.month).split(" ")[0]}, environ <span class="hl">${eur(s.savings_estimate)}</span> de dépenses sont récupérables.</p>
+      <p class="sub">${eur(s.spent)} dépensés pour ${eur(s.income)} de revenus. L'estimation applique une part récupérable à chaque catégorie optimisable, frais bancaires en tête.</p>
+      <div class="split" role="img" aria-label="Répartition des dépenses">
+        ${parts.map(k => `<span style="width:${(n[k] / total * 100).toFixed(2)}%;background:${NATURE[k].color}"></span>`).join("")}
+      </div>
+      <div class="legend">
+        ${parts.map(k => `<span><i class="dot" style="background:${NATURE[k].color}"></i>${NATURE[k].label} <b>${eur(n[k])}</b></span>`).join("")}
+      </div>
+    </div>
+
+    ${s.insights.length ? `
+    <section>
+      <h2>À revoir en priorité</h2>
+      <p class="hint">Les pistes les plus rentables, calculées sur ce mois et les précédents.</p>
+      <ul class="insights">
+        ${s.insights.map(i => `
+          <li>
+            <span class="t">${esc(i.title)}</span>
+            <span class="a">${i.kind === "hausse" ? "+" : ""}${eur(i.amount, 2)}${i.kind === "hausse" ? "" : " /mois"}
+              <span class="y">${i.yearly ? eur(i.yearly) + " /an" : "vs moyenne"}</span></span>
+            <span class="d">${esc(i.detail)}</span>
+          </li>`).join("")}
+      </ul>
+    </section>` : ""}
+
+    <section>
+      <h2>Opérations</h2>
+      <p class="hint">Les montants surlignés sont ceux sur lesquels tu peux agir. Une catégorie changée s'applique à toutes les opérations du marchand.</p>
+      <div class="filters" role="group" aria-label="Filtrer les opérations">
+        ${FILTERS.map(([k, l]) => `<button data-f="${k}" aria-pressed="${state.filter === k}">${l} <span>${filterTx(k).length}</span></button>`).join("")}
+      </div>
+      <ul class="tx" id="tx"></ul>
+      <button class="btn more" id="more" hidden>Afficher plus</button>
+    </section>
+
+    <section>
+      <h2>Par catégorie</h2>
+      <ul class="cats">
+        ${s.by_category.map(c => `
+          <li>
+            <span>${esc(c.label)}</span>
+            <span class="bar"><span style="width:${(c.amount / s.by_category[0].amount * 100).toFixed(1)}%;background:${(NATURE[c.nature] || NATURE.inconnu).color}"></span></span>
+            <span class="v">${eur(c.amount)}</span>
+          </li>`).join("")}
+      </ul>
+    </section>`;
+
+  document.querySelectorAll(".filters button").forEach(b => b.onclick = () => { state.filter = b.dataset.f; state.limit = 40; render(); });
+  renderTx();
+}
+
+function filterTx(k) {
+  const txs = state.summary.transactions;
+  if (k === "all") return txs;
+  if (k === "in") return txs.filter(t => t.amount > 0);
+  return txs.filter(t => t.amount < 0 && t.nature === k);
+}
+
+function renderTx() {
+  const s = state.summary;
+  const list = filterTx(state.filter);
+  const catOptions = (cur) => state.categories.map(c => `<option value="${c.id}" ${c.id === cur ? "selected" : ""}>${esc(c.label)}</option>`).join("");
+  $("#tx").innerHTML = list.slice(0, state.limit).map(t => {
+    const flags = s.flags[t.id] || [];
+    const reasons = flags.filter(r => r !== "optimisable").map(r => REASONS[r]).filter(Boolean);
+    return `
+      <li>
+        <span class="m" title="${esc(t.label)}">${esc(pretty(t.merchant))}</span>
+        <span class="amt ${t.amount > 0 ? "in" : ""}"><span class="${flags.includes("optimisable") ? "hl" : ""}">${eur(t.amount, 2)}</span></span>
+        <span class="meta">
+          <span>${dayLabel(t.date)}</span>
+          <select data-merchant="${esc(t.merchant)}" aria-label="Catégorie de ${esc(pretty(t.merchant))}">${catOptions(t.category)}</select>
+          ${reasons.map(r => `<span class="tag">${r}</span>`).join("")}
+        </span>
+      </li>`;
+  }).join("") || `<li><span class="meta">Aucune opération dans ce filtre.</span></li>`;
+
+  const more = $("#more");
+  more.hidden = list.length <= state.limit;
+  more.onclick = () => { state.limit += 40; renderTx(); };
+
+  document.querySelectorAll("#tx select").forEach(sel => sel.onchange = async () => {
+    const merchant = sel.dataset.merchant;
+    const label = sel.options[sel.selectedIndex].text;
+    try {
+      const r = await api(`/api/merchants/${encodeURIComponent(merchant)}`, { method: "PUT", body: JSON.stringify({ category: sel.value }) });
+      say(`${pretty(merchant)} classé en ${label} (${r.updated} opérations).`);
+      await loadMonth(state.summary.month);
+    } catch (e) { say(e.message, true); }
+  });
+}
+
+function renderFooter() {
+  const st = state.status;
+  const accs = st.accounts.map(a => `${a.bank}, ${a.name}${a.valid_until ? ` (accès valable jusqu'au ${new Date(a.valid_until).toLocaleDateString("fr-FR")})` : ""}`);
+  $("#footer").textContent = [
+    accs.length ? `Comptes : ${accs.join(" ; ")}.` : "",
+    st.llm_enabled ? "Les marchands inconnus sont classés par Claude." : "Classement par règles uniquement. Ajoute une clé Anthropic dans .env pour classer les marchands inconnus.",
+  ].filter(Boolean).join(" ");
+}
+
+$("#month").onchange = (e) => loadMonth(e.target.value);
+$("#add-bank").onclick = () => {
+  if (!$("#connect")) {
+    $("#app").insertAdjacentHTML("afterbegin", `
+      <div class="empty" style="margin-bottom:32px">
+        <h2>Connecter ma banque</h2>
+        <p>Tu seras redirigé vers ta banque pour valider l'accès en lecture seule.</p>
+        <div class="connect" id="connect">
+          <select class="select" id="bank" aria-label="Ta banque"><option>Chargement des banques…</option></select>
+          <button class="btn btn-primary" id="go">Continuer vers ma banque</button>
+        </div>
+      </div>`);
+  }
+  openConnect();
+};
+$("#sync").onclick = async (e) => {
+  e.target.disabled = true; say("Synchronisation en cours…");
+  try {
+    const r = await api("/api/sync", { method: "POST" });
+    say(r.errors.length ? `Synchro partielle : ${r.errors.map(x => x.account).join(", ")} en erreur. Le consentement a peut-être expiré, reconnecte la banque.` : `${r.inserted} nouvelles opérations.`, r.errors.length > 0);
+    await boot();
+  } catch (err) { say(err.message, true); }
+  e.target.disabled = false;
+};
+
+boot().catch(e => say(e.message, true));
+</script>
+</body>
+</html>

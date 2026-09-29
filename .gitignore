@@ -1,0 +1,7 @@
+.env
+keys/*.pem
+data/
+__pycache__/
+.pytest_cache/
+.venv/
+backlog/.locks/
