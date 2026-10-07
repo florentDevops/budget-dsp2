@@ -6,6 +6,11 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      # Le conteneur doit joindre Ollama sur la machine hôte, pas sur localhost du conteneur.
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
       - ./keys:/app/keys

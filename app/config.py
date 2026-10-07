@@ -17,9 +17,15 @@ class Settings:
     consent_days: int = int(os.getenv("CONSENT_DAYS", "180"))
     history_days: int = int(os.getenv("HISTORY_DAYS", "365"))
 
-    # Classification LLM (optionnelle : sans clé, seules les règles s'appliquent)
+    # Classification LLM : "ollama" (local, par défaut), "anthropic" ou "gemini" (nécessitent une clé)
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-    llm_model: str = os.getenv("LLM_MODEL", "claude-haiku-4-5-20251001")
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    llm_provider: str = os.getenv("LLM_PROVIDER", "anthropic" if os.getenv("ANTHROPIC_API_KEY") else "ollama")
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    llm_model: str = os.getenv(
+        "LLM_MODEL",
+        {"anthropic": "claude-haiku-4-5-20251001", "gemini": "gemini-3.8-flash"}.get(llm_provider, "qwen2.5:3b"),
+    )
 
     # Stockage
     db_path: Path = ROOT / os.getenv("DB_PATH", "data/budget.db")
@@ -30,7 +36,11 @@ class Settings:
 
     @property
     def llm_enabled(self) -> bool:
-        return bool(self.anthropic_api_key)
+        if self.llm_provider == "anthropic":
+            return bool(self.anthropic_api_key)
+        if self.llm_provider == "gemini":
+            return bool(self.gemini_api_key)
+        return True  # Ollama : pas de clé à vérifier, les échecs de connexion sont juste journalisés
 
 
 settings = Settings()

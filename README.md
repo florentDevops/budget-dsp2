@@ -2,7 +2,7 @@
 
 Application personnelle de suivi de budget : elle récupère tes opérations bancaires via l'open banking (DSP2), les classe automatiquement, sépare les dépenses essentielles des dépenses optimisables et surligne celles sur lesquelles tu peux agir.
 
-Stack : Python, FastAPI, SQLite, Enable Banking pour l'accès aux comptes, Claude (optionnel) pour classer les marchands inconnus, et un dashboard web sans dépendance front.
+Stack : Python, FastAPI, SQLite, Enable Banking pour l'accès aux comptes, un LLM (Ollama en local par défaut, ou Claude) pour classer les marchands inconnus, et un dashboard web sans dépendance front.
 
 ## Démarrage en 2 minutes (données fictives)
 
@@ -43,10 +43,26 @@ Banque ──DSP2──> Enable Banking ──> enable_banking.py ──> SQLite
 1. ta correction manuelle, mémorisée par marchand et appliquée à tout l'historique ;
 2. les règles regex de `app/rules.yaml` sur le libellé nettoyé ;
 3. le code MCC si la banque le transmet ;
-4. Claude, uniquement pour les marchands restés inconnus, avec un seul appel par marchand puis mise en cache ;
+4. un LLM, uniquement pour les marchands restés inconnus, avec un seul appel par marchand puis mise en cache ;
 5. à défaut, « À classer ».
 
-Seuls les noms de marchands sont envoyés au LLM : jamais les montants, dates, IBAN ou soldes. Sans clé `ANTHROPIC_API_KEY`, l'application fonctionne avec les règles seules.
+Seuls les noms de marchands sont envoyés au LLM : jamais les montants, dates, IBAN ou soldes.
+
+### Classification LLM : Ollama, Gemini ou Claude
+
+Trois fournisseurs possibles via `LLM_PROVIDER` :
+
+- **`gemini` (recommandé)** — [Gemini API](https://ai.google.dev), hébergé, tier gratuit généreux (`gemini-3.8-flash`), mode JSON strict natif. Récupère une clé sur [Google AI Studio](https://aistudio.google.com/apikey) et mets-la dans `GEMINI_API_KEY`.
+- **`ollama`** — local, gratuit, rien ne sort de la machine, mais un petit modèle (`qwen2.5:3b`) est lent (~10 tokens/s observés) : compte plusieurs minutes pour classer un gros historique au premier passage, et les lots sont volontairement limités à 10 marchands pour rester fiables.
+  ```bash
+  brew install ollama
+  brew services start ollama
+  ollama pull qwen2.5:3b
+  ```
+  `OLLAMA_BASE_URL` (défaut `http://localhost:11434`) pointe vers le serveur Ollama. En Docker, `docker-compose.yml` le redirige automatiquement vers `http://host.docker.internal:11434` pour joindre l'Ollama qui tourne sur la machine hôte.
+- **`anthropic`** — Claude, payant, nécessite `ANTHROPIC_API_KEY`.
+
+Sans provider joignable (Ollama arrêté, ou pas de clé configurée), l'application fonctionne quand même avec les règles et le MCC seuls — le LLM ne bloque jamais une synchro, il est juste ignoré en cas d'échec, et les marchands concernés restent « À classer » jusqu'au prochain passage.
 
 **Chaque catégorie a une nature** (`app/categories.py`) : essentiel, optimisable, épargne, revenu ou transfert. Les montants optimisables sont surlignés dans la liste des opérations.
 
