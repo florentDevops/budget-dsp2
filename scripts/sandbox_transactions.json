@@ -1,0 +1,266 @@
+[
+  {
+    "entry_reference": "sbx-2026-07-01-salaire",
+    "transaction_amount": {"currency": "EUR", "amount": "3150.00"},
+    "debtor": {"name": "ACME SAS"},
+    "credit_debit_indicator": "CRDT",
+    "status": "BOOK",
+    "booking_date": "2026-07-28",
+    "value_date": "2026-07-28",
+    "remittance_information": ["VIR SEPA RECU DE ACME SAS SALAIRE JUILLET"]
+  },
+  {
+    "entry_reference": "sbx-2026-07-02-loyer",
+    "transaction_amount": {"currency": "EUR", "amount": "950.00"},
+    "creditor": {"name": "FONCIA GESTION"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-07-01",
+    "value_date": "2026-07-01",
+    "remittance_information": ["VIR SEPA LOYER APPARTEMENT FONCIA"]
+  },
+  {
+    "entry_reference": "sbx-2026-07-03-edf",
+    "transaction_amount": {"currency": "EUR", "amount": "78.40"},
+    "creditor": {"name": "EDF CLIENTS PARTICULIERS"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-07-03",
+    "value_date": "2026-07-03",
+    "remittance_information": ["PRLV SEPA EDF CLIENTS PARTICULIERS"]
+  },
+  {
+    "entry_reference": "sbx-2026-07-04-netflix",
+    "transaction_amount": {"currency": "EUR", "amount": "13.49"},
+    "creditor": {"name": "NETFLIX.COM"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-07-08",
+    "value_date": "2026-07-08",
+    "remittance_information": ["CB NETFLIX.COM 08/07"]
+  },
+  {
+    "entry_reference": "sbx-2026-07-05-carrefour",
+    "transaction_amount": {"currency": "EUR", "amount": "62.30"},
+    "creditor": {"name": "CARREFOUR MARKET"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-07-12",
+    "value_date": "2026-07-12",
+    "remittance_information": ["CB CARREFOUR MARKET 12/07 PARIS"],
+    "merchant_category_code": "5411"
+  },
+  {
+    "entry_reference": "sbx-2026-08-01-salaire",
+    "transaction_amount": {"currency": "EUR", "amount": "3150.00"},
+    "debtor": {"name": "ACME SAS"},
+    "credit_debit_indicator": "CRDT",
+    "status": "BOOK",
+    "booking_date": "2026-08-28",
+    "value_date": "2026-08-28",
+    "remittance_information": ["VIR SEPA RECU DE ACME SAS SALAIRE AOUT"]
+  },
+  {
+    "entry_reference": "sbx-2026-08-02-loyer",
+    "transaction_amount": {"currency": "EUR", "amount": "950.00"},
+    "creditor": {"name": "FONCIA GESTION"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-08-01",
+    "value_date": "2026-08-01",
+    "remittance_information": ["VIR SEPA LOYER APPARTEMENT FONCIA"]
+  },
+  {
+    "entry_reference": "sbx-2026-08-03-edf",
+    "transaction_amount": {"currency": "EUR", "amount": "81.90"},
+    "creditor": {"name": "EDF CLIENTS PARTICULIERS"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-08-03",
+    "value_date": "2026-08-03",
+    "remittance_information": ["PRLV SEPA EDF CLIENTS PARTICULIERS"]
+  },
+  {
+    "entry_reference": "sbx-2026-08-04-netflix",
+    "transaction_amount": {"currency": "EUR", "amount": "13.49"},
+    "creditor": {"name": "NETFLIX.COM"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-08-08",
+    "value_date": "2026-08-08",
+    "remittance_information": ["CB NETFLIX.COM 08/08"]
+  },
+  {
+    "entry_reference": "sbx-2026-08-05-ubereats",
+    "transaction_amount": {"currency": "EUR", "amount": "24.90"},
+    "creditor": {"name": "UBER EATS"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-08-14",
+    "value_date": "2026-08-14",
+    "remittance_information": ["CB UBER EATS 14/08"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-01-salaire",
+    "transaction_amount": {"currency": "EUR", "amount": "3150.00"},
+    "debtor": {"name": "ACME SAS"},
+    "credit_debit_indicator": "CRDT",
+    "status": "BOOK",
+    "booking_date": "2026-09-28",
+    "value_date": "2026-09-28",
+    "remittance_information": ["VIR SEPA RECU DE ACME SAS SALAIRE SEPTEMBRE"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-02-loyer",
+    "transaction_amount": {"currency": "EUR", "amount": "950.00"},
+    "creditor": {"name": "FONCIA GESTION"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-01",
+    "value_date": "2026-09-01",
+    "remittance_information": ["VIR SEPA LOYER APPARTEMENT FONCIA"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-03-edf",
+    "transaction_amount": {"currency": "EUR", "amount": "79.60"},
+    "creditor": {"name": "EDF CLIENTS PARTICULIERS"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-03",
+    "value_date": "2026-09-03",
+    "remittance_information": ["PRLV SEPA EDF CLIENTS PARTICULIERS"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-04-netflix",
+    "transaction_amount": {"currency": "EUR", "amount": "13.49"},
+    "creditor": {"name": "NETFLIX.COM"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-08",
+    "value_date": "2026-09-08",
+    "remittance_information": ["CB NETFLIX.COM 08/09"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-05-orange",
+    "transaction_amount": {"currency": "EUR", "amount": "42.99"},
+    "creditor": {"name": "ORANGE SA FIBRE"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-04",
+    "value_date": "2026-09-04",
+    "remittance_information": ["PRLV SEPA ORANGE SA FIBRE"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-06-axa",
+    "transaction_amount": {"currency": "EUR", "amount": "24.10"},
+    "creditor": {"name": "AXA FRANCE IARD"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-05",
+    "value_date": "2026-09-05",
+    "remittance_information": ["PRLV SEPA AXA FRANCE IARD HABITATION"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-07-navigo",
+    "transaction_amount": {"currency": "EUR", "amount": "88.80"},
+    "creditor": {"name": "COMUTITRES NAVIGO"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-06",
+    "value_date": "2026-09-06",
+    "remittance_information": ["PRLV SEPA COMUTITRES NAVIGO"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-08-carrefour",
+    "transaction_amount": {"currency": "EUR", "amount": "58.75"},
+    "creditor": {"name": "CARREFOUR MARKET"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-10",
+    "value_date": "2026-09-10",
+    "remittance_information": ["CB CARREFOUR MARKET 10/09 PARIS"],
+    "merchant_category_code": "5411"
+  },
+  {
+    "entry_reference": "sbx-2026-09-09-starbucks",
+    "transaction_amount": {"currency": "EUR", "amount": "5.90"},
+    "creditor": {"name": "STARBUCKS"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-11",
+    "value_date": "2026-09-11",
+    "remittance_information": ["CARTE X4821 11/09 STARBUCKS PARIS"],
+    "merchant_category_code": "5814"
+  },
+  {
+    "entry_reference": "sbx-2026-09-10-boulangerie",
+    "transaction_amount": {"currency": "EUR", "amount": "6.40"},
+    "creditor": {"name": "BOULANGERIE DU MARCHE"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-12",
+    "value_date": "2026-09-12",
+    "remittance_information": ["CB BOULANGERIE DU MARCHE 12/09"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-11-epicerie-mcc",
+    "transaction_amount": {"currency": "EUR", "amount": "14.20"},
+    "creditor": {"name": "EPICERIE DU PORT"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-13",
+    "value_date": "2026-09-13",
+    "remittance_information": ["CARTE X4821 13/09 EPICERIE DU PORT"],
+    "merchant_category_code": "5411"
+  },
+  {
+    "entry_reference": "sbx-2026-09-12-inconnu-llm",
+    "transaction_amount": {"currency": "EUR", "amount": "34.00"},
+    "creditor": {"name": "MAISON TATIN"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-15",
+    "value_date": "2026-09-15",
+    "remittance_information": ["CB MAISON TATIN 15/09"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-13-amazon",
+    "transaction_amount": {"currency": "EUR", "amount": "45.99"},
+    "creditor": {"name": "AMAZON PAYMENTS"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-16",
+    "value_date": "2026-09-16",
+    "remittance_information": ["CB AMAZON PAYMENTS 16/09"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-14-frais",
+    "transaction_amount": {"currency": "EUR", "amount": "8.00"},
+    "creditor": {"name": "COMMISSION INTERVENTION"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-18",
+    "value_date": "2026-09-18",
+    "remittance_information": ["COMMISSION INTERVENTION"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-15-retrait",
+    "transaction_amount": {"currency": "EUR", "amount": "60.00"},
+    "creditor": {"name": "RETRAIT DAB BNP"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-19",
+    "value_date": "2026-09-19",
+    "remittance_information": ["RETRAIT DAB BNP PARIS"]
+  },
+  {
+    "entry_reference": "sbx-2026-09-16-livreta",
+    "transaction_amount": {"currency": "EUR", "amount": "200.00"},
+    "creditor": {"name": "LIVRET A"},
+    "credit_debit_indicator": "DBIT",
+    "status": "BOOK",
+    "booking_date": "2026-09-02",
+    "value_date": "2026-09-02",
+    "remittance_information": ["VIR SEPA LIVRET A"]
+  }
+]
