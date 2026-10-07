@@ -5,7 +5,7 @@ import unicodedata
 # Préfixes techniques ajoutés par les banques, sans valeur pour la classification
 _PREFIXES = re.compile(
     r"^(?:"
-    r"PAIEMENT PAR CARTE|PAIEMENT CB|ACHAT CB|FACTURE CARTE|CARTE\s+X?\d{4}|CB\*?\d*|"
+    r"PAIEMENT PAR CARTE|PAIEMENT CB|ACHAT CB|FACTURE CARTE|CARTE|CB\*?\d*|"
     r"PRLV SEPA|PRELEVEMENT(?: SEPA)?|PRLV|"
     r"VIR(?:EMENT)?(?: SEPA)?(?: INST(?:ANTANE)?)?(?: RECU| EMIS)?(?: DE| A| VERS)?|"
     r"ECHEANCE PRET|TIP|CHQ|CHEQUE"
