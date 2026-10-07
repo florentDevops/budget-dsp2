@@ -189,8 +189,6 @@ const REASONS = { abonnement: "Abonnement", micro: "Micro-dépense répétée", 
 const FILTERS = [
   ["all", "Toutes"], ["optimisable", "À optimiser"], ["essentiel", "Essentielles"], ["inconnu", "À classer"], ["in", "Entrées"],
 ];
-const DEMO_UID = "demo-compte-courant";
-
 let state = { status: null, categories: [], summary: null, filter: "optimisable", limit: 40 };
 
 async function api(path, opts = {}) {
@@ -221,7 +219,7 @@ async function boot() {
   sel.innerHTML = state.status.months.map(m => `<option value="${m}">${monthName(m)}</option>`).join("");
   if (state.status.months.includes(current)) sel.value = current;
   sel.hidden = false;
-  const hasBank = state.status.accounts.some(a => a.uid !== DEMO_UID);
+  const hasBank = state.status.accounts.some(a => a.connected);
   $("#sync").hidden = !hasBank;
   $("#add-bank").hidden = hasBank || !state.status.bank_enabled;
   await loadMonth(sel.value);

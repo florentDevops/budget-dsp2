@@ -49,7 +49,10 @@ def status():
     return {
         "bank_enabled": settings.bank_enabled,
         "llm_enabled": settings.llm_enabled,
-        "accounts": db.rows("SELECT uid, bank, name, iban, valid_until, last_sync FROM accounts"),
+        "accounts": db.rows(
+            "SELECT uid, bank, name, iban, valid_until, last_sync, "
+            "session_id IS NOT NULL AS connected FROM accounts"
+        ),
         "months": insights.available_months(),
     }
 
