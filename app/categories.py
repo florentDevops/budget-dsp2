@@ -26,6 +26,7 @@ CATEGORIES: dict[str, dict] = {
     "retraits":        {"label": "Retraits espèces",  "nature": "optimisable"},
     "epargne":         {"label": "Épargne",           "nature": "epargne"},
     "revenus":         {"label": "Revenus",           "nature": "revenu"},
+    "remboursements":  {"label": "Remboursements",    "nature": "revenu"},
     "virements":       {"label": "Virements",         "nature": "transfert"},
     "inconnu":         {"label": "À classer",         "nature": "inconnu"},
 }

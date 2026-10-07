@@ -13,7 +13,7 @@ from .normalize import clean_label
 RULES_PATH = Path(__file__).with_name("rules.yaml")
 
 # Catégories qui gardent leur sens sur une entrée d'argent
-_CREDIT_CATEGORIES = {"epargne", "virements", "revenus"}
+_CREDIT_CATEGORIES = {"epargne", "virements", "revenus", "remboursements"}
 
 
 @lru_cache

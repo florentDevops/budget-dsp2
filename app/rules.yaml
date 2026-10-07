@@ -3,7 +3,8 @@
 # pattern = expression régulière Python.
 
 - {pattern: "LIVRET|ASSURANCE VIE|\\bPEA\\b|EPARGNE|PER INDIVIDUEL", category: epargne}
-- {pattern: "SALAIRE|\\bPAIE\\b|\\bCAF\\b|FRANCE TRAVAIL|POLE EMPLOI|CPAM REMB", category: revenus}
+- {pattern: "\\bREMB(OURSEMENT)?S?\\b|CPAM REMB|SPENDESK|NOTE DE FRAIS", category: remboursements}
+- {pattern: "SALAIRE|\\bPAIE\\b|\\bCAF\\b|FRANCE TRAVAIL|POLE EMPLOI", category: revenus}
 - {pattern: "LOYER|FONCIA|NEXITY|CITYA|SYNDIC|ORPI GESTION", category: logement}
 - {pattern: "\\bEDF\\b|ENGIE|TOTALENERGIES|TOTAL ENERGIES|EKWATEUR|MINT ENERGIE|VEOLIA|SUEZ|EAU DE ", category: energie}
 - {pattern: "CARREFOUR|LECLERC|AUCHAN|INTERMARCHE|\\bLIDL\\b|\\bALDI\\b|MONOPRIX|FRANPRIX|CASINO|SUPER U|HYPER U|PICARD|GRAND FRAIS|NATURALIA|BIOCOOP|BOULANGERIE", category: courses}

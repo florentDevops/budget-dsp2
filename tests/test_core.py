@@ -35,8 +35,13 @@ def test_rules(label, category):
 
 
 def test_credit_defaults_to_revenus():
-    tx = {"merchant": "AMAZON", "label": "REMBOURSEMENT AMAZON", "amount": 25.0}
+    tx = {"merchant": "AMAZON", "label": "CREDIT DIVERS AMAZON", "amount": 25.0}
     assert classify_one(tx, {})[0] == "revenus"
+
+
+def test_refund_classified_as_remboursements():
+    tx = {"merchant": "SPENDESK", "label": "VIR EVINA SPENDESK NOTE DE FRAIS", "amount": 15.5}
+    assert classify_one(tx, {})[0] == "remboursements"
 
 
 def test_user_override_wins_over_rules():
