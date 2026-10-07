@@ -1,5 +1,6 @@
 .env
 keys/*.pem
+certs/
 data/
 __pycache__/
 .pytest_cache/
