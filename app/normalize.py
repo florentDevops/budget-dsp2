@@ -13,6 +13,9 @@ _PREFIXES = re.compile(
 )
 _DATES = re.compile(r"\b\d{2}[/.-]\d{2}(?:[/.-]\d{2,4})?\b")
 _LONG_NUMBERS = re.compile(r"\b[A-Z]*\d{4,}[A-Z\d]*\b")
+# Références techniques (hex, UUID...) : lettres+chiffres mêlés sans 4 chiffres consécutifs,
+# donc non couvertes par _LONG_NUMBERS (ex. "01A0E365E8EA7108B0ED9107486C29D8").
+_REF_CODE = re.compile(r"\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{10,}\b")
 _NOISE = re.compile(r"[^A-Z0-9&+./' ]")
 _SPACES = re.compile(r"\s+")
 
@@ -39,7 +42,10 @@ def extract_merchant(text: str) -> str:
         s = new
     s = _DATES.sub(" ", s)
     s = _LONG_NUMBERS.sub(" ", s)
+    s = _REF_CODE.sub(" ", s)
     tokens = [t for t in _SPACES.sub(" ", s).strip().split(" ") if t and not t.isdigit()]
     while len(tokens) > 1 and tokens[-1] in _TRAILING:
         tokens.pop()
-    return " ".join(tokens[:3]) or clean_label(text)[:30] or "INCONNU"
+    # Volontairement généreux (8 mots) : couper plus court perd des mots distinctifs
+    # ("PPG*SKIN AND OUT PARIS" -> "PPG SKIN AND" sans le "OUT" qui identifie le commerce).
+    return " ".join(tokens[:8]) or clean_label(text)[:30] or "INCONNU"

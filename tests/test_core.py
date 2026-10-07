@@ -15,6 +15,8 @@ from app.normalize import extract_merchant
     ("PRLV SEPA FREE MOBILE FM123456789", "FREE MOBILE"),
     ("PAIEMENT PAR CARTE X1234 STARBUCKS 0231 PARIS", "STARBUCKS"),
     ("VIR SEPA RECU DE ACME SAS SALAIRE", "ACME SAS SALAIRE"),
+    ("CARTE 23/09 PPG*SKIN AND OUT PARIS", "PPG SKIN AND OUT"),
+    ("VIR INST WERO GAUCHOUX JULIE  01a0e365e8ea7108b0ed9107486c29d8", "WERO GAUCHOUX JULIE"),
 ])
 def test_extract_merchant(label, merchant):
     assert extract_merchant(label) == merchant
