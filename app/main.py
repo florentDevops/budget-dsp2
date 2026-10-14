@@ -44,6 +44,11 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/tendances")
+def trends_page():
+    return FileResponse(STATIC / "trends.html")
+
+
 @app.get("/api/status")
 def status():
     return {
@@ -173,13 +178,22 @@ def summary(month: str | None = None):
     return insights.monthly_summary(month or months[0])
 
 
+@app.get("/api/trends")
+def trends():
+    return insights.category_trends()
+
+
 class OverrideBody(BaseModel):
     category: str
     nature: str | None = None
 
 
-@app.put("/api/merchants/{merchant}")
-def override(merchant: str, body: OverrideBody):
+@app.put("/api/merchants/{key}")
+def override(key: str, body: OverrideBody):
+    """key = merchant_key (A-Z0-9), jamais le nom affiché qui peut contenir des '/'."""
     if body.category not in CATEGORIES:
         raise HTTPException(400, "Catégorie inconnue")
-    return {"updated": classifier.apply_user_override(merchant, body.category, body.nature)}
+    updated = classifier.apply_user_override(key, body.category, body.nature)
+    if not updated:
+        raise HTTPException(404, "Marchand inconnu")
+    return {"updated": updated}
