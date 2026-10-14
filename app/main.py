@@ -178,8 +178,12 @@ class OverrideBody(BaseModel):
     nature: str | None = None
 
 
-@app.put("/api/merchants/{merchant}")
-def override(merchant: str, body: OverrideBody):
+@app.put("/api/merchants/{key}")
+def override(key: str, body: OverrideBody):
+    """key = merchant_key (A-Z0-9), jamais le nom affiché qui peut contenir des '/'."""
     if body.category not in CATEGORIES:
         raise HTTPException(400, "Catégorie inconnue")
-    return {"updated": classifier.apply_user_override(merchant, body.category, body.nature)}
+    updated = classifier.apply_user_override(key, body.category, body.nature)
+    if not updated:
+        raise HTTPException(404, "Marchand inconnu")
+    return {"updated": updated}

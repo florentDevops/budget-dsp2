@@ -15,6 +15,7 @@ CATEGORIES: dict[str, dict] = {
     "transport":       {"label": "Transport",         "nature": "essentiel"},
     "telecom":         {"label": "Téléphone & box",   "nature": "essentiel"},
     "education":       {"label": "Éducation",         "nature": "essentiel"},
+    "animaux":         {"label": "Animaux",           "nature": "essentiel"},
     "impots":          {"label": "Impôts & taxes",    "nature": "essentiel"},
     "restaurants":     {"label": "Restos & cafés",    "nature": "optimisable"},
     "livraison":       {"label": "Livraison repas",   "nature": "optimisable"},
@@ -22,6 +23,7 @@ CATEGORIES: dict[str, dict] = {
     "shopping":        {"label": "Shopping",          "nature": "optimisable"},
     "loisirs":         {"label": "Loisirs",           "nature": "optimisable"},
     "voyages":         {"label": "Voyages",           "nature": "optimisable"},
+    "cadeaux":         {"label": "Cadeaux & fleurs",  "nature": "optimisable"},
     "frais_bancaires": {"label": "Frais bancaires",   "nature": "optimisable"},
     "retraits":        {"label": "Retraits espèces",  "nature": "optimisable"},
     "epargne":         {"label": "Épargne",           "nature": "epargne"},
@@ -44,6 +46,7 @@ SAVINGS_RATE = {
     "shopping": 0.3,
     "loisirs": 0.2,
     "voyages": 0.1,
+    "cadeaux": 0.1,
     "retraits": 0.0,
 }
 
