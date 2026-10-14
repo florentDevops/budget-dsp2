@@ -25,10 +25,10 @@ uvicorn app.main:app --reload      # serves the app + dashboard on :8000
 python -m scripts.seed_demo        # load 6 months of fake statement data (or POST /api/demo)
 pytest -q                          # run the full suite (TDD: write the failing test first)
 pytest tests/test_core.py -k test_detect_recurring   # run a single test
-node --test tests/*.test.mjs        # dashboard logic (app/static/filters.js), no npm deps
+node --test tests/*.test.mjs        # dashboard + /tendances logic (app/static/filters.js, trends.js), no npm deps
 ```
 
-There is no build/lint step configured; `app/static/index.html` is a static, dependency-free dashboard served directly (no bundler).
+There is no build/lint step configured; `app/static/index.html` (month dashboard) and `app/static/trends.html` (`/tendances`, spending per category over months) are static, dependency-free pages served directly (no bundler), sharing `theme.css` tokens and `colors.js` (fixed hue per category).
 
 ## Architecture
 
@@ -47,7 +47,7 @@ Bank ──DSP2──> Enable Banking ──> enable_banking.py ──> SQLite (
 - **`app/categories.py`** — single source of truth for categories, each with a `nature`: `essentiel`, `optimisable`, `epargne`, `revenu`, `transfert`, plus `RENEGOTIABLE` categories and `SAVINGS_RATE` (recoverable share per category used to estimate savings potential).
 - **`app/insights.py`** — all detection thresholds live at the top of the file. Computes, per month: recurring subscriptions/contracts (`detect_recurring`: same merchant, amount stable ±15%, ~monthly cadence, seen 3+ months, still active), bank fees, categories drifting >20% vs. the prior 3-month average, repeated micro-spending (<15€, 6+ times/month at the same merchant), and a `savings_estimate` derived from `SAVINGS_RATE`. Also flags which transactions to highlight in the UI.
 - **`app/db.py`** — single-file SQLite, no server; `accounts` and `transactions` tables, plus merchant overrides. `settings.db_path` (from `.env`, default `data/budget.db`) controls the file location.
-- **`app/main.py`** — FastAPI routes tying the above together (`/api/connect`, `/callback`, `/api/sync`, `/api/summary`, `/api/merchants/{key}`, `/api/reclassify`, `/api/demo`); see README's API table for the full list.
+- **`app/main.py`** — FastAPI routes tying the above together (`/api/connect`, `/callback`, `/api/sync`, `/api/summary`, `/api/trends`, `/api/merchants/{key}`, `/api/reclassify`, `/api/demo`); see README's API table for the full list.
 
 ## Notes
 

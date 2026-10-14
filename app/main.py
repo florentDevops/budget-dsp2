@@ -44,6 +44,11 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/tendances")
+def trends_page():
+    return FileResponse(STATIC / "trends.html")
+
+
 @app.get("/api/status")
 def status():
     return {
@@ -171,6 +176,11 @@ def summary(month: str | None = None):
     if not months:
         return {"month": None, "transactions": [], "insights": []}
     return insights.monthly_summary(month or months[0])
+
+
+@app.get("/api/trends")
+def trends():
+    return insights.category_trends()
 
 
 class OverrideBody(BaseModel):

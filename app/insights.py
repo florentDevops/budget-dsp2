@@ -247,6 +247,28 @@ def monthly_summary(month: str) -> dict:
     }
 
 
+def category_trends() -> dict:
+    """Dépenses par catégorie pour chaque mois disponible (ordre chronologique).
+
+    Épargne et virements internes sont exclus : ce n'est pas de la consommation.
+    Une opération pas encore classée compte dans « À classer ».
+    """
+    months = sorted(available_months())
+    index = {m: i for i, m in enumerate(months)}
+    amounts: dict[str, list[float]] = defaultdict(lambda: [0.0] * len(months))
+    for t in db.rows("SELECT date, amount, category, nature FROM transactions WHERE amount < 0"):
+        if t["nature"] in ("epargne", "transfert"):
+            continue
+        amounts[t["category"] or "inconnu"][index[_month(t["date"])]] += -t["amount"]
+    categories = [
+        {"category": k, "label": CATEGORIES.get(k, CATEGORIES["inconnu"])["label"],
+         "nature": CATEGORIES.get(k, CATEGORIES["inconnu"])["nature"],
+         "amounts": [round(v, 2) for v in vals], "total": round(sum(vals), 2)}
+        for k, vals in amounts.items()
+    ]
+    return {"months": months, "categories": sorted(categories, key=lambda c: -c["total"])}
+
+
 def _next_month(month: str) -> str:
     y, m = map(int, month.split("-"))
     return f"{y + (m == 12):04d}-{(m % 12) + 1:02d}"

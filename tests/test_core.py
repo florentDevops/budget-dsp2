@@ -357,3 +357,49 @@ def test_cadeaux_category_is_optimisable_with_savings_rate():
 def test_animaux_category_is_essential():
     from app.categories import CATEGORIES
     assert CATEGORIES["animaux"] == {"label": "Animaux", "nature": "essentiel"}
+
+
+# --- Tendances : dépenses par catégorie, mois par mois --------------------------
+
+def test_trends_by_category_per_month(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    db = _fresh_db(tmp_path, monkeypatch)
+    db.insert_transactions([
+        _raw(1, "CARREFOUR", "2026-08-03", -100.0), _raw(2, "CARREFOUR", "2026-09-03", -60.0),
+        _raw(3, "CARREFOUR", "2026-09-20", -15.5), _raw(4, "NETFLIX", "2026-09-05", -13.0),
+        _raw(5, "MYSTERE", "2026-08-10", -42.0),  # jamais classé (category NULL) -> à classer
+        _raw(6, "LIVRET A", "2026-09-01", -500.0), _raw(7, "EMPLOYEUR", "2026-09-28", 2500.0),
+    ])
+    with db.connect() as con:
+        for ids, cat, nat in [("'a:1','a:2','a:3'", "courses", "essentiel"), ("'a:4'", "abonnements", "optimisable"),
+                              ("'a:6'", "epargne", "epargne"), ("'a:7'", "revenus", "revenu")]:
+            con.execute(f"UPDATE transactions SET category = ?, nature = ? WHERE id IN ({ids})", (cat, nat))
+
+    r = TestClient(main.app).get("/api/trends")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["months"] == ["2026-08", "2026-09"]
+    by_cat = {c["category"]: c for c in body["categories"]}
+    assert set(by_cat) == {"courses", "abonnements", "inconnu"}  # ni épargne, ni entrées
+    assert by_cat["courses"]["amounts"] == [100.0, 75.5]
+    assert by_cat["courses"]["label"] == "Courses" and by_cat["courses"]["total"] == 175.5
+    assert by_cat["inconnu"]["amounts"] == [42.0, 0.0]
+    assert by_cat["abonnements"]["amounts"] == [0.0, 13.0]
+    assert [c["category"] for c in body["categories"]] == ["courses", "inconnu", "abonnements"]
+
+
+def test_trends_empty_without_transactions(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    _fresh_db(tmp_path, monkeypatch)
+    assert TestClient(main.app).get("/api/trends").json() == {"months": [], "categories": []}
+
+
+def test_trends_page_is_served():
+    from fastapi.testclient import TestClient
+    from app import main
+    client = TestClient(main.app)
+    page = client.get("/tendances")
+    assert page.status_code == 200 and '<script src="/static/trends.js"></script>' in page.text
+    assert 'href="/tendances"' in client.get("/").text
