@@ -535,3 +535,169 @@ def test_api_advice(tmp_path, monkeypatch):
     monkeypatch.setattr(llm, "advise", lambda ctx: None)
     assert client.post("/api/advice", json={"months": 6}).status_code == 502
     assert client.post("/api/advice", json={"months": 0}).status_code == 422
+
+
+# --- Comptes multiples : connexion perso / pro et rôle par compte ---------------
+
+@pytest.mark.parametrize("account, psu_type, role", [
+    ({"cash_account_type": "CACC", "usage": "PRIV"}, "personal", "courant"),
+    ({"cash_account_type": "SVGS", "usage": "PRIV"}, "personal", "epargne"),   # livret A, livret enfants
+    ({"cash_account_type": "LOAN"}, "personal", "credit"),                    # crédit maison
+    ({"cash_account_type": "CACC"}, "business", "pro"),                       # Qonto
+    ({"cash_account_type": "CACC", "usage": "ORGA"}, "personal", "pro"),
+    ({"cash_account_type": "SVGS"}, "business", "pro"),                       # épargne de la société, pas la tienne
+    ({"cash_account_type": "LOAN"}, "business", "credit"),
+    ({}, None, "courant"),
+])
+def test_default_account_role(account, psu_type, role):
+    from app.accounts import default_role
+    assert default_role(account, psu_type) == role
+
+
+def test_start_auth_sends_requested_psu_type(tmp_path, monkeypatch):
+    from app.enable_banking import EnableBankingClient
+    key = tmp_path / "k.pem"
+    key.write_bytes(b"x")
+    client = EnableBankingClient(app_id="app", key_path=key)
+    sent = []
+    monkeypatch.setattr(client, "_request", lambda method, path, **kw: sent.append(kw["json"]) or {"url": "u"})
+    client.start_auth("Qonto", "FR", "s", psu_type="business")
+    client.start_auth("Fortuneo", "FR", "s")
+    assert [b["psu_type"] for b in sent] == ["business", "personal"]
+
+
+class _FakeBank:
+    """Client Enable Banking factice : enregistre les appels, renvoie une session donnée."""
+    def __init__(self, session=None):
+        self.session, self.auths = session, []
+
+    def list_banks(self, country):
+        return [{"name": "Qonto", "country": "FR", "maximum_consent_validity": 15552000, "psu_types": ["business"]},
+                {"name": "Fortuneo", "country": "FR", "maximum_consent_validity": 15552000}]
+
+    def start_auth(self, bank, country, state, psu_type="personal"):
+        self.auths.append((bank, psu_type))
+        return {"url": "https://bank.example/auth"}
+
+    def create_session(self, code):
+        return self.session
+
+
+CE_SESSION = {
+    "session_id": "sess-ce", "psu_type": "personal", "access": {"valid_until": "2027-04-01T00:00:00Z"},
+    "accounts": [
+        {"uid": "ce-livret", "name": "M LEMAITRE FLORENT", "product": "LIVRET A", "cash_account_type": "SVGS",
+         "usage": "PRIV", "currency": "EUR", "account_id": {"iban": "FR7600000000000000000000001"}},
+        {"uid": "ce-depot", "name": "M LEMAITRE FLORENT", "product": "COMPTE DE DEPOT", "cash_account_type": "CACC",
+         "usage": "PRIV", "currency": "EUR", "account_id": {"iban": "FR7600000000000000000000002"}},
+        {"uid": "ce-pret", "name": "M LEMAITRE FLORENT", "product": "PRET IMMOBILIER", "cash_account_type": "LOAN",
+         "currency": "EUR"},
+    ],
+}
+
+
+def _connect_flow(monkeypatch, client, bank, session, psu_type="personal"):
+    from app import main
+    fake = _FakeBank(session)
+    monkeypatch.setattr(main, "_client", lambda: fake)
+    monkeypatch.setattr(main, "sync", lambda: None)
+    assert client.post("/api/connect", json={"bank": bank, "psu_type": psu_type}).status_code == 200
+    state = next(iter(main._pending_auth))
+    r = client.get(f"/callback?code=c&state={state}", follow_redirects=False)
+    assert r.headers["location"] == "/?connected=1"
+    return fake
+
+
+def test_banks_expose_accepted_psu_types(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    _fresh_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(main, "_client", lambda: _FakeBank())
+    banks = {b["name"]: b["psu_types"] for b in TestClient(main.app).get("/api/banks").json()}
+    assert banks == {"Qonto": ["business"], "Fortuneo": ["personal"]}  # absent = perso seulement
+
+
+def test_connect_rejects_unknown_psu_type(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    _fresh_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(main, "_client", lambda: _FakeBank())
+    assert TestClient(main.app).post("/api/connect", json={"bank": "Qonto", "psu_type": "corporate"}).status_code == 422
+
+
+def test_callback_stores_accounts_with_default_roles(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    db = _fresh_db(tmp_path, monkeypatch)
+    client = TestClient(main.app)
+    _connect_flow(monkeypatch, client, "Caisse d'Epargne Aquitaine Poitou-Charentes", CE_SESSION)
+    qonto = {"session_id": "sess-q", "psu_type": "business", "access": {"valid_until": "2027-04-01T00:00:00Z"},
+             "accounts": [{"uid": "q-main", "name": "MA SOCIETE SAS", "cash_account_type": "CACC", "currency": "EUR"}]}
+    fake = _connect_flow(monkeypatch, client, "Qonto", qonto, psu_type="business")
+    assert fake.auths == [("Qonto", "business")]
+    accs = {a["uid"]: a for a in db.rows("SELECT * FROM accounts")}
+    assert {u: a["role"] for u, a in accs.items()} == \
+        {"ce-livret": "epargne", "ce-depot": "courant", "ce-pret": "credit", "q-main": "pro"}
+    assert accs["ce-livret"]["product"] == "LIVRET A" and accs["ce-livret"]["cash_account_type"] == "SVGS"
+    assert accs["q-main"]["psu_type"] == "business" and accs["ce-depot"]["bank"].startswith("Caisse d'Epargne")
+
+
+def test_reconnecting_keeps_user_role_and_label(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    db = _fresh_db(tmp_path, monkeypatch)
+    client = TestClient(main.app)
+    _connect_flow(monkeypatch, client, "Caisse d'Epargne", CE_SESSION)
+    r = client.put("/api/accounts/ce-livret", json={"role": "epargne", "label": "Livret enfants"})
+    assert r.status_code == 200
+    client.put("/api/accounts/ce-depot", json={"role": "credit"})
+    _connect_flow(monkeypatch, client, "Caisse d'Epargne", {**CE_SESSION, "session_id": "sess-ce-2"})
+    accs = {a["uid"]: a for a in db.rows("SELECT * FROM accounts")}
+    assert accs["ce-livret"]["label"] == "Livret enfants" and accs["ce-depot"]["role"] == "credit"
+    assert accs["ce-livret"]["session_id"] == "sess-ce-2"
+
+
+def test_update_account_validation(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    db = _fresh_db(tmp_path, monkeypatch)
+    client = TestClient(main.app)
+    _connect_flow(monkeypatch, client, "Caisse d'Epargne", CE_SESSION)
+    assert client.put("/api/accounts/ce-livret", json={"role": "bitcoin"}).status_code == 400
+    assert client.put("/api/accounts/inconnu", json={"role": "epargne"}).status_code == 404
+    client.put("/api/accounts/ce-livret", json={"label": "Livret enfants"})
+    client.put("/api/accounts/ce-livret", json={"label": "   "})  # vide : retour au nom de la banque
+    assert db.rows("SELECT role, label FROM accounts WHERE uid='ce-livret'") == [{"role": "epargne", "label": None}]
+
+
+def test_status_lists_account_roles(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    _fresh_db(tmp_path, monkeypatch)
+    client = TestClient(main.app)
+    _connect_flow(monkeypatch, client, "Caisse d'Epargne", CE_SESSION)
+    accs = {a["uid"]: a for a in client.get("/api/status").json()["accounts"]}
+    assert accs["ce-pret"]["role"] == "credit" and accs["ce-pret"]["product"] == "PRET IMMOBILIER"
+    assert accs["ce-livret"]["connected"] == 1 and "label" in accs["ce-livret"]
+    assert {r["id"] for r in client.get("/api/account-roles").json()} == {"courant", "epargne", "pro", "credit"}
+
+
+def test_existing_accounts_become_courant_after_migration(tmp_path, monkeypatch):
+    import sqlite3
+    from app import config, db
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE accounts (uid TEXT PRIMARY KEY, session_id TEXT, bank TEXT, name TEXT, iban TEXT,
+                               currency TEXT, valid_until TEXT, last_sync TEXT);
+        INSERT INTO accounts VALUES ('fo-perso', 's', 'Fortuneo', 'M LEMAITRE FLORENT', 'FR76', 'EUR', NULL, NULL);
+    """)
+    con.commit()
+    con.close()
+    monkeypatch.setattr(config.settings, "db_path", path)
+    db.init_db()
+    db.insert_transactions([_raw(1, "CARREFOUR")])
+    assert db.rows("SELECT uid, role, label, name FROM accounts") == \
+        [{"uid": "fo-perso", "role": "courant", "label": None, "name": "M LEMAITRE FLORENT"}]
+    db.init_db()  # migration idempotente
+    assert len(db.rows("SELECT * FROM accounts")) == 1

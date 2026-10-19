@@ -60,14 +60,16 @@ class EnableBankingClient:
         return data.get("aspsps", [])
 
     # --- Consentement ---
-    def start_auth(self, bank_name: str, country: str, state: str | None = None) -> dict:
+    def start_auth(self, bank_name: str, country: str, state: str | None = None,
+                   psu_type: str = "personal") -> dict:
+        """psu_type : "personal" ou "business" (compte pro), selon les psu_types de la banque."""
         valid_until = datetime.now(timezone.utc) + timedelta(days=settings.consent_days)
         body = {
             "access": {"valid_until": valid_until.isoformat()},
             "aspsp": {"name": bank_name, "country": country},
             "state": state or str(uuid.uuid4()),
             "redirect_url": settings.eb_redirect_url,
-            "psu_type": "personal",
+            "psu_type": psu_type,
         }
         return self._request("POST", "/auth", json=body)  # contient "url"
 

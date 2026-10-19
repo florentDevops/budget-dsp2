@@ -4,6 +4,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
@@ -11,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import classifier, db, demo, insights, llm
+from .accounts import ROLES, default_role
 from .categories import CATEGORIES
 from .config import settings
 from .enable_banking import EnableBankingClient, EnableBankingError, normalize_transaction
@@ -30,7 +32,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Budget DSP2", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
-_pending_auth: dict[str, str] = {}  # state -> nom de la banque (usage mono-utilisateur)
+_pending_auth: dict[str, dict] = {}  # state -> {bank, psu_type} (usage mono-utilisateur)
 
 
 def _client() -> EnableBankingClient:
@@ -55,11 +57,34 @@ def status():
         "bank_enabled": settings.bank_enabled,
         "llm_enabled": settings.llm_enabled,
         "accounts": db.rows(
-            "SELECT uid, bank, name, iban, valid_until, last_sync, "
-            "session_id IS NOT NULL AS connected FROM accounts"
+            "SELECT uid, bank, name, label, product, role, psu_type, iban, valid_until, last_sync, "
+            "session_id IS NOT NULL AS connected FROM accounts ORDER BY bank, uid"
         ),
         "months": insights.available_months(),
     }
+
+
+@app.get("/api/account-roles")
+def account_roles():
+    return [{"id": k, **v} for k, v in ROLES.items()]
+
+
+class AccountBody(BaseModel):
+    role: str | None = None
+    label: str | None = None
+
+
+@app.put("/api/accounts/{uid}")
+def update_account(uid: str, body: AccountBody):
+    """Rôle et nom affiché d'un compte ; un label vide revient au nom donné par la banque."""
+    fields = body.model_dump(exclude_unset=True)
+    if "role" in fields and fields["role"] not in ROLES:
+        raise HTTPException(400, "Rôle de compte inconnu")
+    if "label" in fields:
+        fields["label"] = (fields["label"] or "").strip() or None
+    if not db.update_account(uid, fields):
+        raise HTTPException(404, "Compte inconnu")
+    return db.rows("SELECT uid, role, label FROM accounts WHERE uid = ?", (uid,))[0]
 
 
 @app.get("/api/categories")
@@ -73,7 +98,8 @@ def categories():
 def banks(country: str = settings.eb_country):
     try:
         return [{"name": b["name"], "country": b["country"],
-                 "max_days": b.get("maximum_consent_validity")} for b in _client().list_banks(country)]
+                 "max_days": b.get("maximum_consent_validity"),
+                 "psu_types": b.get("psu_types") or ["personal"]} for b in _client().list_banks(country)]
     except EnableBankingError as exc:
         raise HTTPException(502, str(exc))
 
@@ -81,16 +107,17 @@ def banks(country: str = settings.eb_country):
 class ConnectBody(BaseModel):
     bank: str
     country: str = settings.eb_country
+    psu_type: Literal["personal", "business"] = "personal"  # business : compte pro (Qonto...)
 
 
 @app.post("/api/connect")
 def connect(body: ConnectBody):
     state = str(uuid.uuid4())
     try:
-        auth = _client().start_auth(body.bank, body.country, state)
+        auth = _client().start_auth(body.bank, body.country, state, psu_type=body.psu_type)
     except EnableBankingError as exc:
         raise HTTPException(502, str(exc))
-    _pending_auth[state] = body.bank
+    _pending_auth[state] = {"bank": body.bank, "psu_type": body.psu_type}
     return {"url": auth["url"]}
 
 
@@ -98,7 +125,8 @@ def connect(body: ConnectBody):
 def callback(code: str | None = None, state: str | None = None, error: str | None = None):
     if error or not code:
         return RedirectResponse(f"/?error={error or 'consentement_refuse'}")
-    bank = _pending_auth.pop(state, "Banque") if state else "Banque"
+    pending = _pending_auth.pop(state, {}) if state else {}
+    bank = pending.get("bank", "Banque")
     client = _client()
     try:
         session = client.create_session(code)
@@ -107,6 +135,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
         return RedirectResponse("/?error=session")
 
     valid_until = (session.get("access") or {}).get("valid_until")
+    psu_type = session.get("psu_type") or pending.get("psu_type")
     for acc in session.get("accounts", []):
         uid = acc["uid"] if isinstance(acc, dict) else acc
         info = acc if isinstance(acc, dict) else {}
@@ -118,6 +147,10 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
             "iban": (info.get("account_id") or {}).get("iban", ""),
             "currency": info.get("currency", "EUR"),
             "valid_until": valid_until,
+            "role": default_role(info, psu_type),
+            "product": info.get("product"),
+            "cash_account_type": info.get("cash_account_type"),
+            "psu_type": psu_type,
         })
     sync()
     return RedirectResponse("/?connected=1")
