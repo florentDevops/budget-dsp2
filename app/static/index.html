@@ -172,6 +172,7 @@ footer { margin-top: 48px; font-size: .85rem; color: var(--muted); }
     <h1>Budget</h1>
     <a class="btn" href="/tendances">Tendances</a>
     <select id="month" class="select" aria-label="Mois affiché" hidden></select>
+    <a id="goto-accounts" class="btn" href="#accounts" hidden>Comptes</a>
     <button id="add-bank" class="btn" hidden>Ajouter un compte</button>
     <button id="sync" class="btn" hidden>Synchroniser</button>
   </header>
@@ -220,7 +221,8 @@ function say(msg, isErr = false) {
 async function boot() {
   const params = new URLSearchParams(location.search);
   if (params.get("error")) say("La connexion à la banque n'a pas abouti. Relance-la depuis « Connecter ma banque ».", true);
-  if (params.get("connected")) say("Banque connectée, opérations importées.");
+  const connected = params.get("connected");
+  if (connected) say("Banque connectée, opérations importées. Vérifie le rôle de chaque compte dans « Comptes ».");
   if (params.toString()) history.replaceState({}, "", "/");
 
   [state.status, state.categories, state.roles] = await Promise.all([api("/api/status"), api("/api/categories"), api("/api/account-roles")]);
@@ -237,7 +239,9 @@ async function boot() {
   const hasBank = state.status.accounts.some(a => a.connected);
   $("#sync").hidden = !hasBank;
   $("#add-bank").hidden = !state.status.bank_enabled;  // autant de banques et de comptes que voulu
+  $("#goto-accounts").hidden = !state.status.accounts.length;
   await loadMonth(sel.value);
+  if (connected) $("#accounts").scrollIntoView({ behavior: "smooth" });
 }
 
 async function loadMonth(month) {
@@ -472,6 +476,7 @@ function renderAccounts() {
   el.innerHTML = `
     <h2>Comptes</h2>
     <p class="hint">Le rôle décide comment comptent les virements entre tes comptes : courant (dans le budget), épargne et épargne enfants (ce qui y arrive est de l'épargne), pro (hors budget, sauf ce qu'il te verse ou met de côté), crédit (prêt, hors budget : l'échéance compte côté compte courant).</p>
+    <p class="hint">Les banques n'ouvrent que les comptes de paiement : tes livrets (livret A, LDD, livrets des enfants) n'apparaîtront pas ici. Classe plutôt les virements qui y partent en Épargne ou Épargne enfants dans la liste des opérations : ils compteront dans ton épargne.</p>
     <ul class="accounts">
       ${accs.map(a => `<li>
         <input value="${esc(a.label || "")}" placeholder="${esc(accountName({ ...a, label: null }))}" data-label="${esc(a.uid)}" aria-label="Nom affiché du compte ${esc(accountName(a))}">

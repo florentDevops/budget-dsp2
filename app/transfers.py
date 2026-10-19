@@ -17,15 +17,20 @@ OUT = "hors_budget"     # nature à la lecture des opérations qui ne sont pas d
 NEUTRAL = ("virements", "transfert")
 SAVINGS = {"epargne": ("epargne", "epargne"), "enfants": ("epargne_enfants", "epargne")}
 
-# Libellé de virement ou de prélèvement, des deux côtés : un paiement carte de 50 € et un
-# virement reçu de 50 € le même jour ne sont pas un virement entre ses comptes.
+# Un libellé de virement ou de prélèvement d'au moins un côté (Qonto n'écrit que la référence
+# saisie, « Envoye depuis Qonto »), et jamais de carte ni de chèque d'un côté comme de l'autre :
+# un paiement carte de 50 € et un virement reçu de 50 € le même jour ne sont pas un virement
+# entre ses comptes.
 _TRANSFER = re.compile(r"\bVIR\b|VIREMENT|VERSEMENT|TRANSFER|\bPRLV\b|PRELEVEMENT|ECHEANCE", re.I)
 _CARD = re.compile(r"^\s*(CB|CARTE|PAIEMENT PAR CARTE)\b", re.I)
 
 
 def _looks_like_transfer(t: dict) -> bool:
-    text = f"{t['label'] or ''} {t['counterparty'] or ''}"
-    return bool(_TRANSFER.search(text)) and not _CARD.match(t["label"] or "") and not is_cheque(t["label"] or "")
+    return bool(_TRANSFER.search(f"{t['label'] or ''} {t['counterparty'] or ''}"))
+
+
+def _can_be_transfer(t: dict) -> bool:
+    return not _CARD.match(t["label"] or "") and not is_cheque(t["label"] or "")
 
 
 def match() -> int:
@@ -33,7 +38,7 @@ def match() -> int:
     manuelles (transfer_source = 'user') ne sont jamais remises en cause. Renvoie le nombre de paires créées."""
     free = [t for t in db.rows(
         """SELECT id, account_uid, date, amount, label, counterparty FROM transactions
-           WHERE transfer_peer IS NULL AND transfer_source IS NULL""") if _looks_like_transfer(t)]
+           WHERE transfer_peer IS NULL AND transfer_source IS NULL""") if _can_be_transfer(t)]
     credits: dict[float, list[dict]] = {}
     for t in free:
         if t["amount"] > 0:
@@ -42,7 +47,8 @@ def match() -> int:
     for d in (t for t in free if t["amount"] < 0):
         for c in credits.get(round(-d["amount"], 2), []):
             gap = abs((date.fromisoformat(c["date"]) - date.fromisoformat(d["date"])).days)
-            if c["account_uid"] != d["account_uid"] and gap <= MATCH_WINDOW_DAYS:
+            if c["account_uid"] != d["account_uid"] and gap <= MATCH_WINDOW_DAYS \
+                    and (_looks_like_transfer(d) or _looks_like_transfer(c)):
                 candidates.append((gap, d["date"], d["id"], c["id"]))
     used, pairs = set(), []
     for _, _, debit, credit in sorted(candidates):
@@ -85,9 +91,15 @@ def effective(t: dict) -> dict:
     role = t.get("account_role") or "courant"
     peer = t.get("peer_role") or ("courant" if t.get("peer_account") else None)
     if role == "pro":
-        # Seule l'épargne versée directement depuis la société compte, côté pro (le livret
-        # est hors budget) ; ses dépenses et ses virements vers tes comptes courants non.
-        cat_nat = SAVINGS[peer] if peer in SAVINGS and t["amount"] < 0 else (_out_category(t, peer), OUT)
+        # Seule l'épargne versée directement depuis la société compte, côté pro : vers un livret
+        # connecté (lui-même hors budget), ou vers un placement non connecté (assurance vie,
+        # fonds) classé épargne. Ses dépenses et ses virements vers tes comptes courants non.
+        if t["amount"] < 0 and peer in SAVINGS:
+            cat_nat = SAVINGS[peer]
+        elif t["amount"] < 0 and peer is None and t["nature"] == "epargne":
+            return t
+        else:
+            cat_nat = (_out_category(t, peer), OUT)
     elif role != "courant":
         cat_nat = (_out_category(t, peer), OUT)  # livrets, compte enfants, prêt : lus depuis le compte courant
     elif t.get("user_category"):
