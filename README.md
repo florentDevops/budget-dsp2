@@ -93,7 +93,10 @@ Le potentiel affiché en haut applique une part récupérable par catégorie (`S
 | GET | `/callback` | Retour de la banque, crée la session et synchronise |
 | POST | `/api/sync` | Récupère les nouvelles opérations et les classe |
 | GET | `/api/summary?month=YYYY-MM` | Totaux, pistes, surbrillances et opérations du mois |
-| PUT | `/api/merchants/{marchand}` | Corrige la catégorie d'un marchand |
+| GET | `/api/trends` | Dépenses par catégorie pour chaque mois (page `/tendances`, `?cat=<catégorie>` pour la mettre en avant) |
+| GET | `/api/cashflow` | Entrées, sorties et épargne nette pour chaque mois (mois en cours signalé partiel), en tête de `/tendances` |
+| POST | `/api/advice` | Synthèse et conseils du LLM sur les `{"months": 6}` derniers mois complets ; ne reçoit que des totaux par mois et par catégorie |
+| PUT | `/api/merchants/{clé}` | Corrige la catégorie d'un marchand (`merchant_key` A-Z0-9 renvoyée par `/api/summary`, pas le nom affiché) |
 | POST | `/api/reclassify` | Reclasse tout après modification des règles |
 | POST | `/api/demo` | Charge le relevé fictif |
 

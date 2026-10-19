@@ -1,0 +1,78 @@
+/* Tokens et base partagés par index.html et trends.html */
+:root {
+  --paper: #EEF1F0;
+  --surface: #FFFFFF;
+  --ink: #1B2A33;
+  --muted: #5F6D75;
+  --rule: #D5DCD9;
+  --keep: #2E7359;
+  --save: #3E6AA8;
+  --marker: #FFE14D;
+  --unknown: #A7B0B5;
+  --danger: #A33A2A;
+  --other: #C3CBC8;
+  /* Palette catégorielle à 8 + 4 teintes (barres « Par catégorie »), validée daltonisme
+     (ΔE CVD ≥ 8 entre voisines) sur --surface, en clair comme en sombre. Chaque teinte
+     suit une catégorie fixe, jamais son rang ; le libellé à côté de chaque barre
+     porte l'identité (3 teintes < 3:1 de contraste en mode clair). */
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #1baf7a;
+  --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #008300;
+  --cat-7: #4a3aa7;
+  --cat-8: #e34948;
+  /* 4 teintes de plus, choisies pour rester à ΔE ≥ 15 (vision normale) de toutes les autres */
+  --cat-9: #a644a0;
+  --cat-10: #79472c;
+  --cat-11: #006071;
+  --cat-12: #a686fc;
+  /* Bilan entrées / sorties : bleu / rouge (le couple vert / rouge échoue en deutéranopie,
+     ΔE 6,9) ; l'écart est teinté --keep / --danger, toujours doublé d'un solde signé. */
+  --flow-in: #2a78d6;
+  --flow-out: #e34948;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #131C21;
+    --surface: #1B262D;
+    --ink: #E4EAEC;
+    --muted: #93A1A8;
+    --rule: #2B3A42;
+    --keep: #5DB38C;
+    --save: #80A7E0;
+    --marker: rgba(255, 214, 40, .5);
+    --unknown: #5C6A71;
+    --danger: #E8836F;
+    --other: #3D4C53;
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --cat-5: #d55181;
+    --cat-6: #008300;
+    --cat-7: #9085e9;
+    --cat-8: #e66767;
+    --cat-9: #833ea7;
+    --cat-10: #7f5b2b;
+    --cat-11: #6cb8cb;
+    --cat-12: #90bd30;
+    --flow-in: #3987e5;
+    --flow-out: #e66767;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.5 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+}
+main { max-width: 680px; margin: 0 auto; padding: 20px 18px 64px; }
+h1, h2, p { margin: 0; }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--save); outline-offset: 2px; border-radius: 4px; }
