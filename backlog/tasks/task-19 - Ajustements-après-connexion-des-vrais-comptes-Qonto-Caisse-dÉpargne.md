@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-10-19 21:13'
-updated_date: '2026-10-19 21:15'
+updated_date: '2026-10-19 21:18'
 labels:
   - bug
 dependencies: []
@@ -43,6 +43,8 @@ Premiers comptes réels connectés : Qonto (compte pro de l'EI), Caisse d'Éparg
 
 <!-- SECTION:NOTES:BEGIN -->
 pytest 121 ok (5 nouveaux), node 19 ok. Base réelle : sauvegarde dans le scratchpad puis via l'API rôles / noms des 5 comptes (Lina -> Épargne enfants) et virements vers Paul -> Épargne enfants (5 opérations, ils étaient corrigés en Virements). Sur une copie de la base avec le nouveau code (sans appel LLM) : ECH PRET -> logement, épargne mensuelle 0 / 10 / 1070 / 1070 / 70 / 110 € (mai -> oct.) au lieu de 0 / 10 / 20 / 20 / 20 / 60 € grâce aux versements Qonto vers SPIRICA et Spiko ; entrées et sorties inchangées (l'échéance était déjà comptée en sortie, sous une mauvaise catégorie). Constat Enable Banking : la Caisse d'Épargne n'a renvoyé que 2 comptes de dépôt (CACC, « CPT DEPOT PART. »), celui de Lina à 0 € ; aucun livret. Chrome headless : lien Comptes, défilement après ?connected=1, mobile 390 px sans débordement.
+
+Ajout : règle épargne étendue au LDD / LDDS / développement durable (aucun libellé de ce type encore dans la base). Vérifié avec l'utilisateur : les « Virement avec Fortuneo Florent » du joint alimentent le compte de dépôt CE (crédit maison) ; appariés et neutres depuis le 22 juin (début de l'historique CE), classés Virements (neutres aussi) avant.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

@@ -3,7 +3,7 @@
 # pattern = expression régulière Python.
 
 - {pattern: "\\bECH(EANCE)? PRET\\b", category: logement}   # échéance du crédit (le LLM y voyait un remboursement)
-- {pattern: "LIVRET|ASSURANCE VIE|\\bPEA\\b|EPARGNE|PER INDIVIDUEL", category: epargne}
+- {pattern: "LIVRET|\\bLDDS?\\b|DEVELOPPEMENT DURABLE|ASSURANCE VIE|\\bPEA\\b|EPARGNE|PER INDIVIDUEL", category: epargne}
 - {pattern: "\\bREMB(OURSEMENT)?S?\\b|CPAM REMB|SPENDESK|NOTE DE FRAIS", category: remboursements}
 - {pattern: "SALAIRE|\\bPAIE\\b|\\bCAF\\b|FRANCE TRAVAIL|POLE EMPLOI", category: revenus}
 - {pattern: "LOYER|FONCIA|NEXITY|CITYA|SYNDIC|ORPI GESTION", category: logement}

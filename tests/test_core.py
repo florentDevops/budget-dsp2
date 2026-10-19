@@ -58,6 +58,9 @@ def test_merchant_key_is_url_safe_and_punctuation_insensitive():
     ("PRLV LA BANQUE POSTALE COTISATION", "frais_bancaires"),  # la banque, pas le courrier
     ("ECH PRET   9068203 DU 05/10/26", "logement"),     # échéance du crédit maison, pas un remboursement reçu
     ("PRLV ECHEANCE PRET IMMO", "logement"),
+    ("VIR LDDS FLORENT", "epargne"),
+    ("VIREMENT VERS LDD", "epargne"),
+    ("VIR LIVRET DEVELOPPEMENT DURABLE", "epargne"),
 ])
 def test_rules(label, category):
     assert match_rules(label) == category
