@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     nature        TEXT,
     class_source  TEXT,                   -- user | rule | mcc | llm | default
     user_category TEXT,                   -- correction manuelle : source de vérité, jamais écrasée
-    user_nature   TEXT                    --   par un reclassement (NULL = nature par défaut)
+    user_nature   TEXT,                   --   par un reclassement (NULL = nature par défaut)
+    transfer_peer TEXT,                   -- id de l'opération jumelle d'un virement entre ses comptes
+    transfer_source TEXT                  -- auto | user (une paire ou dissociation manuelle est figée)
 );
 CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
 
@@ -92,6 +94,8 @@ def _sync_merchant_keys(con: sqlite3.Connection) -> None:
         save_override(key, category, nature, "user", con)
 
 
+_TRANSFER_COLUMNS = {"transfer_peer": "TEXT", "transfer_source": "TEXT"}
+
 _ACCOUNT_COLUMNS = {
     "role": "TEXT NOT NULL DEFAULT 'courant'", "label": "TEXT", "product": "TEXT",
     "cash_account_type": "TEXT", "psu_type": "TEXT",
@@ -101,7 +105,8 @@ _ACCOUNT_COLUMNS = {
 def _migrate(con: sqlite3.Connection) -> None:
     """Bases anciennes : avant merchant_key (le nom affiché servait de clé), avant
     user_category (les corrections manuelles ne vivaient que dans merchant_overrides),
-    et avant le rôle des comptes (les comptes existants deviennent « courant »)."""
+    avant le rôle des comptes (les comptes existants deviennent « courant ») et avant
+    l'appariement des virements entre comptes."""
     acc_cols = {r[1] for r in con.execute("PRAGMA table_info(accounts)")}
     for col, decl in _ACCOUNT_COLUMNS.items():
         if acc_cols and col not in acc_cols:
@@ -120,6 +125,9 @@ def _migrate(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE transactions ADD COLUMN user_nature TEXT")
         con.execute("""UPDATE transactions SET user_category=category, user_nature=nature
                        WHERE class_source='user'""")
+    for col, decl in _TRANSFER_COLUMNS.items():
+        if tx_cols and col not in tx_cols:
+            con.execute(f"ALTER TABLE transactions ADD COLUMN {col} {decl}")
     ov_cols = {r[1] for r in con.execute("PRAGMA table_info(merchant_overrides)")}
     if ov_cols and "merchant_key" not in ov_cols:
         old = con.execute("SELECT merchant, category, nature, source FROM merchant_overrides").fetchall()

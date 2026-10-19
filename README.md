@@ -90,7 +90,7 @@ Le potentiel affiché en haut applique une part récupérable par catégorie (`S
 | GET | `/api/status` | Comptes connectés (avec rôle, nom affiché, produit), mois disponibles, options actives |
 | GET | `/api/banks?country=FR` | Banques disponibles chez Enable Banking, avec les types de connexion acceptés (`psu_types` : `personal`, `business`) |
 | POST | `/api/connect` | Démarre le consentement (`{"bank": ..., "psu_type": "personal" \| "business"}`), renvoie l'URL de la banque ; à répéter pour chaque banque |
-| GET | `/api/account-roles` | Rôles possibles d'un compte : courant, épargne, pro, crédit |
+| GET | `/api/account-roles` | Rôles possibles d'un compte : courant, épargne, épargne enfants, pro, crédit ; ils décident comment comptent les virements entre tes comptes |
 | PUT | `/api/accounts/{uid}` | Change le rôle et/ou le nom affiché d'un compte (`{"role": "epargne", "label": "Livret enfants"}`, label vide = nom de la banque) |
 | GET | `/callback` | Retour de la banque, crée la session et synchronise |
 | POST | `/api/sync` | Récupère les nouvelles opérations et les classe |
@@ -98,6 +98,7 @@ Le potentiel affiché en haut applique une part récupérable par catégorie (`S
 | GET | `/api/trends` | Dépenses par catégorie pour chaque mois (page `/tendances`, `?cat=<catégorie>` pour la mettre en avant) |
 | GET | `/api/cashflow` | Entrées, sorties et épargne nette pour chaque mois (mois en cours signalé partiel), en tête de `/tendances` |
 | POST | `/api/advice` | Synthèse et conseils du LLM sur les `{"months": 6}` derniers mois complets ; ne reçoit que des totaux par mois et par catégorie |
+| PUT | `/api/transactions/{id}/transfer` | Apparie à la main deux opérations comme virement entre tes comptes (`{"peer": "<id>"}`) ou les dissocie (`{"peer": null}`) ; prioritaire sur l'appariement automatique |
 | PUT | `/api/merchants/{clé}` | Corrige la catégorie d'un marchand (`merchant_key` A-Z0-9 renvoyée par `/api/summary`, pas le nom affiché) |
 | POST | `/api/reclassify` | Reclasse tout après modification des règles |
 | POST | `/api/demo` | Charge le relevé fictif |

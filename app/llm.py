@@ -16,7 +16,8 @@ from .config import settings
 
 log = logging.getLogger(__name__)
 
-_ALLOWED = [c for c in CATEGORIES if c not in ("revenus", "inconnu")]
+# epargne_enfants : seul l'utilisateur sait quel virement va aux enfants
+_ALLOWED = [c for c in CATEGORIES if c not in ("revenus", "inconnu", "epargne_enfants")]
 
 SYSTEM_PROMPT = f"""Tu classes des marchands issus de relevés bancaires français.
 Pour chaque marchand, choisis exactement une catégorie parmi :

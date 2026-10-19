@@ -4,6 +4,8 @@ La nature est la deuxième dimension de classification :
 - essentiel   : dépense utile, difficile à réduire à court terme
 - optimisable : dépense sur laquelle on peut faire des économies
 - epargne / revenu / transfert : hors budget de consommation
+- hors_budget : nature appliquée à la lecture (app/transfers.py) aux opérations des comptes
+  épargne, crédit et pro, jamais stockée
 """
 
 CATEGORIES: dict[str, dict] = {
@@ -27,6 +29,7 @@ CATEGORIES: dict[str, dict] = {
     "frais_bancaires": {"label": "Frais bancaires",   "nature": "optimisable"},
     "retraits":        {"label": "Retraits espèces",  "nature": "optimisable"},
     "epargne":         {"label": "Épargne",           "nature": "epargne"},
+    "epargne_enfants": {"label": "Épargne enfants",   "nature": "epargne"},
     "revenus":         {"label": "Revenus",           "nature": "revenu"},
     "remboursements":  {"label": "Remboursements",    "nature": "revenu"},
     "virements":       {"label": "Virements",         "nature": "transfert"},
