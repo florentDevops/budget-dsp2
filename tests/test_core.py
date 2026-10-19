@@ -56,6 +56,8 @@ def test_merchant_key_is_url_safe_and_punctuation_insensitive():
     ("CB BUREAU VALLEE BEGLES", "shopping"),
     ("CB PAPETERIE DU CENTRE", "shopping"),
     ("PRLV LA BANQUE POSTALE COTISATION", "frais_bancaires"),  # la banque, pas le courrier
+    ("ECH PRET   9068203 DU 05/10/26", "logement"),     # échéance du crédit maison, pas un remboursement reçu
+    ("PRLV ECHEANCE PRET IMMO", "logement"),
 ])
 def test_rules(label, category):
     assert match_rules(label) == category
@@ -899,3 +901,42 @@ def test_kids_savings_role_and_category_exist():
     assert ROLES["enfants"]["label"] == "Épargne enfants"
     assert CATEGORIES["epargne_enfants"]["nature"] == "epargne" and "epargne_enfants" in _CREDIT_CATEGORIES
     assert "epargne_enfants" not in _ALLOWED  # le LLM ne devine pas l'épargne des enfants
+
+
+# --- Comptes réels : épargne versée depuis le compte pro, libellés Qonto ------------
+
+def test_pro_savings_to_unconnected_account_count_as_household_savings(tmp_path, monkeypatch):
+    from app import insights, transfers
+    db = _fresh_db(tmp_path, monkeypatch)
+    _acc(db, "fo", "courant"), _acc(db, "q", "pro")
+    _insert(db, [
+        _mtx(1, "q", "2026-08-10", -50.0, "940322588 - Versement libre programme", "epargne", "epargne"),  # SPIRICA
+        _mtx(2, "q", "2026-08-04", -1000.0, "Epargne Florent", "epargne", "epargne"),                     # Spiko
+        _mtx(3, "q", "2026-08-12", 700.0, "S.A.S. HFC DISTRIBUTION", "revenus", "revenu"),               # chiffre d'affaires
+        _mtx(4, "q", "2026-08-04", -969.0, "UR 727000000653085290", "impots", "essentiel"),              # URSSAF
+        _mtx(5, "fo", "2026-08-28", 3000.0, "VIR SEPA RECU SALAIRE", "revenus", "revenu"),
+    ])
+    transfers.match()
+    cf = insights.cashflow()
+    assert (cf["income"], cf["spent"], cf["savings"]) == ([3000.0], [0.0], [1050.0])
+
+
+def test_qonto_transfer_labels_are_matched_when_the_other_side_looks_like_a_transfer(tmp_path, monkeypatch):
+    from app import insights, transfers
+    db = _fresh_db(tmp_path, monkeypatch)
+    _acc(db, "fo", "courant"), _acc(db, "q", "pro")
+    _insert(db, [_mtx(1, "q", "2026-05-27", -700.0, "Envoye depuis Qonto", "virements", "transfert"),
+                 _mtx(2, "fo", "2026-05-28", 700.0, "VIR INST EI LEMAITRE FLORENT", "virements", "transfert"),
+                 _mtx(3, "q", "2026-05-27", -45.0, "Envoye depuis Qonto", "virements", "transfert"),
+                 _mtx(4, "fo", "2026-05-27", 45.0, "AMAZON REMBOURSEMENT", "remboursements", "revenu")])
+    assert transfers.match() == 1
+    assert _peers(db)["q:1"] == "fo:2" and _peers(db)["q:3"] is None
+    assert insights.cashflow()["income"] == [745.0]  # le versement de l'EI est une entrée
+
+
+def test_accounts_section_is_reachable_from_the_header():
+    from fastapi.testclient import TestClient
+    from app import main
+    page = TestClient(main.app).get("/").text
+    assert 'id="goto-accounts"' in page and 'href="#accounts"' in page
+    assert "livrets" in page.lower()  # pourquoi les livrets n'apparaissent pas
