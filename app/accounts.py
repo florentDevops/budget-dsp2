@@ -2,7 +2,8 @@
 
 - courant : dans le budget (comptes de tous les jours, compte joint, compte de dépôt
   qui paie le crédit maison)
-- epargne : livrets, compte des enfants ; l'argent qui y arrive est de l'épargne
+- epargne : livrets ; l'argent qui y arrive est de l'épargne
+- enfants : livret ou compte des enfants : épargne aussi, comptée à part
 - pro     : compte professionnel, hors budget
 - credit  : compte de prêt ; ses mouvements ne sont pas des dépenses
 """
@@ -10,6 +11,7 @@
 ROLES: dict[str, dict] = {
     "courant": {"label": "Courant"},
     "epargne": {"label": "Épargne"},
+    "enfants": {"label": "Épargne enfants"},
     "pro":     {"label": "Pro"},
     "credit":  {"label": "Crédit"},
 }

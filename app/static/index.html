@@ -146,6 +146,8 @@ section > p.hint { color: var(--muted); font-size: .9rem; margin-bottom: 12px; }
 .accounts .meta { grid-column: 1 / -1; font-size: .84rem; color: var(--muted); }
 .accounts select { min-height: 32px; padding: 3px 8px; }
 .filters.acc { margin-bottom: 4px; }
+.tag.flow { color: var(--muted); }
+.tx .link { font-size: .84rem; }
 #status {
   position: fixed; left: 50%; transform: translateX(-50%);
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
@@ -434,6 +436,7 @@ function renderTx() {
           ${state.status.accounts.length > 1 && accountById(t.account_uid) ? `<span>${esc(accountName(accountById(t.account_uid)))}</span>` : ""}
           <select data-key="${esc(t.merchant_key)}" data-merchant="${esc(t.merchant)}" aria-label="Catégorie de ${esc(pretty(t.merchant))}">${catOptions(t.category)}</select>
           ${reasons.map(r => `<span class="tag">${r}</span>`).join("")}
+          ${(f => f ? `<span class="tag flow">${esc(f.text)}</span>${f.kind === "interne" ? `<button class="link" data-unpair="${esc(t.id)}" title="Ce n'est pas un virement entre tes comptes">Dissocier</button>` : ""}` : "")(flowTag(t, state.status.accounts))}
         </span>
       </li>`;
   }).join("") || `<li><span class="meta">Aucune opération dans ce filtre.</span></li>`;
@@ -441,6 +444,14 @@ function renderTx() {
   const more = $("#more");
   more.hidden = list.length <= state.limit;
   more.onclick = () => { state.limit += 40; renderTx(); };
+
+  document.querySelectorAll("[data-unpair]").forEach(b => b.onclick = async () => {
+    try {
+      await api(`/api/transactions/${encodeURIComponent(b.dataset.unpair)}/transfer`, { method: "PUT", body: JSON.stringify({ peer: null }) });
+      say("Opérations dissociées : chacune reprend son classement habituel.");
+      await loadMonth(state.summary.month);
+    } catch (e) { say(e.message, true); }
+  });
 
   document.querySelectorAll("#tx select").forEach(sel => sel.onchange = async () => {
     const merchant = sel.dataset.merchant;
@@ -460,7 +471,7 @@ function renderAccounts() {
   const date = (d) => new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
   el.innerHTML = `
     <h2>Comptes</h2>
-    <p class="hint">Le rôle indique comment lire les virements entre tes comptes : courant (dans le budget), épargne (livrets, compte des enfants), pro (hors budget), crédit (prêt).</p>
+    <p class="hint">Le rôle décide comment comptent les virements entre tes comptes : courant (dans le budget), épargne et épargne enfants (ce qui y arrive est de l'épargne), pro (hors budget, sauf ce qu'il te verse ou met de côté), crédit (prêt, hors budget : l'échéance compte côté compte courant).</p>
     <ul class="accounts">
       ${accs.map(a => `<li>
         <input value="${esc(a.label || "")}" placeholder="${esc(accountName({ ...a, label: null }))}" data-label="${esc(a.uid)}" aria-label="Nom affiché du compte ${esc(accountName(a))}">
@@ -480,7 +491,7 @@ function renderAccounts() {
       await api(`/api/accounts/${encodeURIComponent(uid)}`, { method: "PUT", body: JSON.stringify(body) });
       state.status = await api("/api/status");
       say(msg);
-      render();
+      await loadMonth(state.summary.month);  // le rôle change les totaux du mois
     } catch (e) { say(e.message, true); }
   };
   el.querySelectorAll("[data-role]").forEach(sel => sel.onchange = () =>

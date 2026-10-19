@@ -679,7 +679,7 @@ def test_status_lists_account_roles(tmp_path, monkeypatch):
     accs = {a["uid"]: a for a in client.get("/api/status").json()["accounts"]}
     assert accs["ce-pret"]["role"] == "credit" and accs["ce-pret"]["product"] == "PRET IMMOBILIER"
     assert accs["ce-livret"]["connected"] == 1 and "label" in accs["ce-livret"]
-    assert {r["id"] for r in client.get("/api/account-roles").json()} == {"courant", "epargne", "pro", "credit"}
+    assert {r["id"] for r in client.get("/api/account-roles").json()} == {"courant", "epargne", "enfants", "pro", "credit"}
 
 
 def test_existing_accounts_become_courant_after_migration(tmp_path, monkeypatch):
@@ -701,3 +701,201 @@ def test_existing_accounts_become_courant_after_migration(tmp_path, monkeypatch)
         [{"uid": "fo-perso", "role": "courant", "label": None, "name": "M LEMAITRE FLORENT"}]
     db.init_db()  # migration idempotente
     assert len(db.rows("SELECT * FROM accounts")) == 1
+
+
+# --- Virements entre ses propres comptes : appariement et rôle des comptes -------
+
+def _acc(db, uid, role, bank="Banque"):
+    db.upsert_account({"uid": uid, "session_id": "s", "bank": bank, "name": uid, "iban": "", "currency": "EUR",
+                       "valid_until": None, "role": role})
+
+
+def _mtx(i, acc, d, amount, label, category=None, nature=None):
+    return {"id": f"{acc}:{i}", "account_uid": acc, "date": d, "amount": amount, "currency": "EUR",
+            "label": label, "counterparty": "", "mcc": None, "merchant": label, "_cls": (category, nature)}
+
+
+def _insert(db, txs):
+    db.insert_transactions(txs)
+    with db.connect() as con:
+        for t in txs:
+            if t["_cls"][0]:
+                con.execute("UPDATE transactions SET category=?, nature=?, class_source='rule' WHERE id=?",
+                            (*t["_cls"], t["id"]))
+
+
+def _peers(db):
+    return {r["id"]: r["transfer_peer"] for r in db.rows("SELECT id, transfer_peer FROM transactions")}
+
+
+def test_transfers_match_debit_and_credit_across_accounts(tmp_path, monkeypatch):
+    from app import transfers
+    db = _fresh_db(tmp_path, monkeypatch)
+    _acc(db, "fo", "courant"), _acc(db, "ce", "epargne")
+    _insert(db, [_mtx(1, "fo", "2026-08-01", -200.0, "VIR SEPA LIVRET A"),
+                 _mtx(2, "ce", "2026-08-03", 200.0, "VIREMENT RECU M LEMAITRE")])  # 2 jours : apparié
+    assert transfers.match() == 1
+    assert _peers(db) == {"fo:1": "ce:2", "ce:2": "fo:1"}
+    assert transfers.match() == 0  # idempotent
+
+
+@pytest.mark.parametrize("debit, credit", [
+    (_mtx(1, "fo", "2026-08-01", -200.0, "VIR SEPA LIVRET A"), _mtx(2, "ce", "2026-08-05", 200.0, "VIREMENT RECU")),  # 4 jours
+    (_mtx(1, "fo", "2026-08-01", -200.0, "VIR SEPA LIVRET A"), _mtx(2, "ce", "2026-08-01", 199.0, "VIREMENT RECU")),  # montant
+    (_mtx(1, "fo", "2026-08-01", -50.0, "CB CARREFOUR 01/08"), _mtx(2, "ce", "2026-08-01", 50.0, "VIREMENT RECU")),  # carte
+    (_mtx(1, "fo", "2026-08-01", -50.0, "CHQ 0538322"), _mtx(2, "ce", "2026-08-01", 50.0, "VIREMENT RECU")),        # chèque
+    (_mtx(1, "fo", "2026-08-01", -50.0, "AMAZON PAYMENTS"), _mtx(2, "ce", "2026-08-01", 50.0, "REMBOURSEMENT AMAZON")),  # pas un virement
+    (_mtx(1, "fo", "2026-08-01", -200.0, "VIR SEPA LIVRET A"), _mtx(2, "fo", "2026-08-01", 200.0, "VIREMENT RECU")),  # même compte
+])
+def test_transfers_false_positives_are_not_matched(tmp_path, monkeypatch, debit, credit):
+    from app import transfers
+    db = _fresh_db(tmp_path, monkeypatch)
+    _acc(db, "fo", "courant"), _acc(db, "ce", "epargne")
+    _insert(db, [debit, credit])
+    assert transfers.match() == 0
+
+
+def test_transfers_are_matched_one_to_one_closest_date_first(tmp_path, monkeypatch):
+    from app import transfers
+    db = _fresh_db(tmp_path, monkeypatch)
+    _acc(db, "fo", "courant"), _acc(db, "jt", "courant")
+    _insert(db, [_mtx(1, "fo", "2026-08-01", -100.0, "VIR COMPTE JOINT"), _mtx(2, "fo", "2026-08-03", -100.0, "VIR COMPTE JOINT"),
+                 _mtx(3, "jt", "2026-08-03", 100.0, "VIR RECU FLORENT")])
+    assert transfers.match() == 1
+    assert _peers(db)["jt:3"] == "fo:2" and _peers(db)["fo:1"] is None
+
+
+def _household(tmp_path, monkeypatch):
+    """Août 2026 sur les comptes réels : Fortuneo perso et joint, Caisse d'Épargne (livret A, livret
+    enfants, compte de dépôt du crédit, prêt), Qonto."""
+    from app import transfers
+    db = _fresh_db(tmp_path, monkeypatch)
+    for uid, role in [("fo", "courant"), ("jt", "courant"), ("la", "epargne"), ("le", "enfants"),
+                      ("dep", "courant"), ("pret", "credit"), ("q", "pro")]:
+        _acc(db, uid, role)
+    _insert(db, [
+        _mtx(1, "fo", "2026-08-28", 3000.0, "VIR SEPA RECU ACME SALAIRE", "revenus", "revenu"),
+        _mtx(2, "fo", "2026-08-02", -500.0, "VIR COMPTE JOINT", "virements", "transfert"),
+        _mtx(3, "jt", "2026-08-02", 500.0, "VIR RECU M LEMAITRE", "revenus", "revenu"),          # courant -> courant
+        _mtx(4, "fo", "2026-08-03", -200.0, "VIR SEPA LIVRET A", "epargne", "epargne"),
+        _mtx(5, "la", "2026-08-04", 200.0, "VIREMENT RECU", "revenus", "revenu"),                # courant -> épargne
+        _mtx(6, "fo", "2026-08-03", -50.0, "VIR LIVRET ENFANTS", "epargne", "epargne"),
+        _mtx(7, "le", "2026-08-03", 50.0, "VIREMENT RECU", "revenus", "revenu"),                 # courant -> enfants
+        _mtx(8, "q", "2026-08-10", -1000.0, "TRANSFER TO FLORENT LEMAITRE", "virements", "transfert"),
+        _mtx(9, "fo", "2026-08-11", 1000.0, "VIR SEPA RECU MA SOCIETE SAS", "revenus", "revenu"),  # pro -> courant
+        _mtx(10, "q", "2026-08-12", -300.0, "TRANSFER TO LIVRET A", "virements", "transfert"),
+        _mtx(11, "la", "2026-08-12", 300.0, "VIREMENT RECU MA SOCIETE", "revenus", "revenu"),    # pro -> épargne
+        _mtx(12, "q", "2026-08-15", -80.0, "CB AMAZON BUSINESS", "shopping", "optimisable"),     # dépense pro
+        _mtx(13, "q", "2026-08-15", -9.0, "FRAIS QONTO", "frais_bancaires", "optimisable"),       # frais pro
+        _mtx(14, "fo", "2026-08-04", -900.0, "VIR SEPA COMPTE DEPOT CE", "virements", "transfert"),
+        _mtx(15, "dep", "2026-08-05", 900.0, "VIREMENT RECU", "revenus", "revenu"),              # alimente le dépôt
+        _mtx(16, "dep", "2026-08-06", -900.0, "PRLV ECHEANCE PRET IMMO", "logement", "essentiel"),
+        _mtx(17, "pret", "2026-08-06", 900.0, "ECHEANCE PRET REMBOURSEMENT", "revenus", "revenu"),  # échéance du prêt
+        _mtx(18, "la", "2026-08-20", -100.0, "VIR VERS COMPTE COURANT", "virements", "transfert"),
+        _mtx(19, "fo", "2026-08-20", 100.0, "VIR SEPA RECU LIVRET A", "revenus", "revenu"),      # retrait d'épargne
+        _mtx(20, "jt", "2026-08-22", -120.0, "CB CARREFOUR", "courses", "essentiel"),
+    ])
+    assert transfers.match() == 8
+    return db
+
+
+def test_roles_count_each_flow_once(tmp_path, monkeypatch):
+    from app import insights
+    _household(tmp_path, monkeypatch)
+    cf = insights.cashflow()
+    i = cf["months"].index("2026-08")
+    assert cf["income"][i] == 4000.0      # salaire + versement de la société, pas les virements internes
+    assert cf["spent"][i] == 1020.0       # échéance du crédit + courses ; ni Qonto ni virements
+    assert cf["savings"][i] == 450.0      # 200 livret + 50 enfants + 300 depuis Qonto - 100 retiré
+
+
+def test_monthly_summary_applies_account_roles(tmp_path, monkeypatch):
+    from app import insights
+    _household(tmp_path, monkeypatch)
+    s = insights.monthly_summary("2026-08")
+    assert s["income"] == 4000.0 and s["spent"] == 1020.0
+    cats = {c["category"]: c["amount"] for c in s["by_category"]}
+    assert cats["logement"] == 900.0 and cats["epargne_enfants"] == 50.0 and cats["epargne"] == 500.0
+    assert "shopping" not in cats and "frais_bancaires" not in cats  # dépenses de la société
+    assert not any(i["kind"] == "frais" for i in s["insights"])
+    by_id = {t["id"]: t for t in s["transactions"]}
+    assert by_id["q:12"]["nature"] == "hors_budget"           # toujours listée, mais hors budget
+    assert by_id["q:12"]["category"] == "shopping"             # dépense propre du compte pro
+    assert by_id["la:5"]["category"] == "virements"            # pas « Revenus » côté livret
+    assert by_id["fo:2"]["nature"] == "transfert" and by_id["fo:2"]["peer_account"] == "jt"
+    assert by_id["dep:16"]["category"] == "logement"           # l'échéance reste une dépense logement
+    assert by_id["fo:14"]["nature"] == "transfert"             # le virement qui alimente le dépôt est neutre
+
+
+def test_trends_and_advice_follow_account_roles(tmp_path, monkeypatch):
+    from app import insights
+    _household(tmp_path, monkeypatch)
+    trends = {c["category"]: c["amounts"] for c in insights.category_trends()["categories"]}
+    assert set(trends) == {"logement", "courses"}
+    ctx = insights.advice_context(12)
+    assert ctx["mois"][-1] == {"mois": "2026-08", "entrees": 4000.0, "sorties": 1020.0, "solde": 2980.0, "epargne": 450.0}
+
+
+def test_user_rule_sends_unconnected_transfer_to_kids_savings(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import insights, main
+    db = _fresh_db(tmp_path, monkeypatch)
+    _acc(db, "fo", "courant")
+    _insert(db, [_mtx(1, "fo", "2026-08-05", -80.0, "VIR SEPA LIVRET JEUNE LOU", "virements", "transfert")])
+    key = db.rows("SELECT merchant_key FROM transactions")[0]["merchant_key"]
+    assert TestClient(main.app).put(f"/api/merchants/{key}", json={"category": "epargne_enfants"}).status_code == 200
+    assert insights.cashflow()["savings"] == [80.0]
+    assert insights.monthly_summary("2026-08")["by_category"][0]["category"] == "epargne_enfants"
+
+
+def test_user_category_wins_on_a_matched_courant_transaction(tmp_path, monkeypatch):
+    from app import classifier, insights
+    db = _household(tmp_path, monkeypatch)
+    with db.connect() as con:
+        con.execute("UPDATE transactions SET merchant_key='CADEAUJOINT' WHERE id='fo:2'")
+    classifier.apply_user_override("CADEAUJOINT", "cadeaux")
+    by_id = {t["id"]: t for t in insights.monthly_summary("2026-08")["transactions"]}
+    assert by_id["fo:2"]["category"] == "cadeaux"
+
+
+def test_manual_transfer_pairing_wins_over_auto_matching(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main, transfers
+    db = _household(tmp_path, monkeypatch)
+    client = TestClient(main.app)
+    assert client.put("/api/transactions/fo:4/transfer", json={"peer": None}).status_code == 200
+    assert _peers(db)["fo:4"] is None and _peers(db)["la:5"] is None
+    transfers.match()
+    assert _peers(db)["fo:4"] is None  # la dissociation manuelle tient
+    # appariement manuel hors fenêtre automatique
+    _insert(db, [_mtx(30, "fo", "2026-09-01", -60.0, "VIR LIVRET A"), _mtx(31, "la", "2026-09-09", 60.0, "VIREMENT RECU")])
+    assert client.put("/api/transactions/fo:30/transfer", json={"peer": "la:31"}).status_code == 200
+    assert _peers(db)["la:31"] == "fo:30"
+    assert client.put("/api/transactions/fo:30/transfer", json={"peer": "fo:1"}).status_code == 400  # même compte
+    assert client.put("/api/transactions/nope/transfer", json={"peer": None}).status_code == 404
+    assert client.put("/api/transactions/fo:30/transfer", json={"peer": "nope"}).status_code == 404
+
+
+def test_transfer_columns_are_added_to_old_databases(tmp_path, monkeypatch):
+    import sqlite3
+    from app import config, db
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.executescript("""CREATE TABLE transactions (id TEXT PRIMARY KEY, account_uid TEXT NOT NULL, date TEXT NOT NULL,
+        amount REAL NOT NULL, currency TEXT, label TEXT, counterparty TEXT, mcc TEXT, merchant TEXT, merchant_key TEXT,
+        category TEXT, nature TEXT, class_source TEXT, user_category TEXT, user_nature TEXT);""")
+    con.close()
+    monkeypatch.setattr(config.settings, "db_path", path)
+    db.init_db()
+    cols = {r["name"] for r in db.rows("PRAGMA table_info(transactions)")}
+    assert {"transfer_peer", "transfer_source"} <= cols
+
+
+def test_kids_savings_role_and_category_exist():
+    from app.accounts import ROLES
+    from app.categories import CATEGORIES
+    from app.classifier import _CREDIT_CATEGORIES
+    from app.llm import _ALLOWED
+    assert ROLES["enfants"]["label"] == "Épargne enfants"
+    assert CATEGORIES["epargne_enfants"]["nature"] == "epargne" and "epargne_enfants" in _CREDIT_CATEGORIES
+    assert "epargne_enfants" not in _ALLOWED  # le LLM ne devine pas l'épargne des enfants

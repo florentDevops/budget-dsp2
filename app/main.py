@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import classifier, db, demo, insights, llm
+from . import classifier, db, demo, insights, llm, transfers
 from .accounts import ROLES, default_role
 from .categories import CATEGORIES
 from .config import settings
@@ -26,6 +26,7 @@ STATIC = Path(__file__).with_name("static")
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     db.init_db()
+    transfers.match()
     yield
 
 
@@ -162,7 +163,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
 def sync():
     accounts = [a for a in db.rows("SELECT * FROM accounts") if a["session_id"]]
     if not accounts:
-        return {"inserted": 0, "classified": classifier.classify_pending(), "errors": []}
+        return {"inserted": 0, "classified": classifier.classify_pending(), "transfers": transfers.match(), "errors": []}
 
     client = _client()
     inserted, errors = 0, []
@@ -185,20 +186,21 @@ def sync():
             log.error(exc)
             errors.append({"account": acc["name"], "error": str(exc)[:300]})
 
-    return {"inserted": inserted, "classified": classifier.classify_pending(), "errors": errors}
+    classified = classifier.classify_pending()
+    return {"inserted": inserted, "classified": classified, "transfers": transfers.match(), "errors": errors}
 
 
 @app.post("/api/demo")
 def load_demo():
     inserted = demo.load_demo()
-    return {"inserted": inserted, "classified": classifier.classify_pending()}
+    return {"inserted": inserted, "classified": classifier.classify_pending(), "transfers": transfers.match()}
 
 
 @app.post("/api/reclassify")
 def reclassify():
     """À lancer après avoir modifié rules.yaml."""
     classifier.load_rules.cache_clear()
-    return {"classified": classifier.classify_pending(force=True)}
+    return {"classified": classifier.classify_pending(force=True), "transfers": transfers.match()}
 
 
 # --- Lecture et corrections ---------------------------------------------------
@@ -238,6 +240,25 @@ def advice(body: AdviceBody):
         raise HTTPException(502, f"Le LLM ({settings.llm_provider}) n'a pas répondu, réessaie dans un instant.")
     return {**answer, "months": [m["mois"] for m in context["mois"]],
             "provider": settings.llm_provider, "model": settings.llm_model}
+
+
+class TransferBody(BaseModel):
+    peer: str | None = None
+
+
+@app.put("/api/transactions/{tx_id}/transfer")
+def set_transfer(tx_id: str, body: TransferBody):
+    """Apparie à la main deux opérations comme un virement entre ses comptes (peer = id de
+    l'opération jumelle), ou les dissocie (peer null). Prioritaire sur l'appariement automatique."""
+    ids = [tx_id] + ([body.peer] if body.peer else [])
+    found = {r["id"]: r for r in db.rows(
+        f"SELECT id, account_uid FROM transactions WHERE id IN ({','.join('?' * len(ids))})", tuple(ids))}
+    if len(found) != len(ids):
+        raise HTTPException(404, "Opération inconnue")
+    if body.peer and found[tx_id]["account_uid"] == found[body.peer]["account_uid"]:
+        raise HTTPException(400, "Un virement interne relie deux comptes différents")
+    transfers.set_peer(tx_id, body.peer)
+    return {"id": tx_id, "peer": body.peer}
 
 
 class OverrideBody(BaseModel):

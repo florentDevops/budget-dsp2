@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from statistics import mean, median
 
-from . import db
+from . import db, transfers
 from .categories import CATEGORIES, RENEGOTIABLE, SAVINGS_RATE
 from .normalize import is_cheque
 
@@ -100,10 +100,11 @@ def detect_recurring(txs: list[dict]) -> list[dict]:
 
 def monthly_summary(month: str) -> dict:
     history_start = _prev_months(month, 6)[-1] + "-01"
-    all_txs = db.rows(
-        "SELECT * FROM transactions WHERE date >= ? AND date < ? ORDER BY date DESC",
-        (history_start, _next_month(month) + "-01"),
-    )
+    # Les opérations hors budget (livrets, prêt, dépenses pro) restent listées mais ne
+    # comptent dans aucun total ni aucune piste.
+    listed = transfers.load("WHERE t.date >= ? AND t.date < ? ORDER BY t.date DESC",
+                            (history_start, _next_month(month) + "-01"), include_out=True)
+    all_txs = [t for t in listed if t["nature"] != transfers.OUT]
     txs = [t for t in all_txs if _month(t["date"]) == month]
 
     # Totaux par nature et par catégorie (dépenses en valeur positive)
@@ -243,7 +244,7 @@ def monthly_summary(month: str) -> dict:
         "insights": insights,
         "recurring": recurring,
         "flags": {k: sorted(v) for k, v in flags.items()},
-        "transactions": txs,
+        "transactions": [t for t in listed if _month(t["date"]) == month],
     }
 
 
@@ -256,7 +257,7 @@ def category_trends() -> dict:
     months = sorted(available_months())
     index = {m: i for i, m in enumerate(months)}
     amounts: dict[str, list[float]] = defaultdict(lambda: [0.0] * len(months))
-    for t in db.rows("SELECT date, amount, category, nature FROM transactions WHERE amount < 0"):
+    for t in transfers.load("WHERE t.amount < 0"):
         if t["nature"] in ("epargne", "transfert"):
             continue
         amounts[t["category"] or "inconnu"][index[_month(t["date"])]] += -t["amount"]
@@ -279,7 +280,7 @@ def cashflow() -> dict:
     months = sorted(available_months())
     index = {m: i for i, m in enumerate(months)}
     income, spent, savings = ([0.0] * len(months) for _ in range(3))
-    for t in db.rows("SELECT date, amount, nature FROM transactions"):
+    for t in transfers.load():
         i = index[_month(t["date"])]
         if t["nature"] == "epargne":
             savings[i] -= t["amount"]
@@ -334,8 +335,8 @@ def advice_context(n: int) -> dict | None:
                        "moyenne_mensuelle": round(monthly, 2), "evolution_pct": evol})
     by_cat.sort(key=lambda c: -c["moyenne_mensuelle"])
 
-    txs = db.rows("SELECT * FROM transactions WHERE date >= ? AND date < ?",
-                  (months[0] + "-01", _next_month(months[-1]) + "-01"))
+    txs = transfers.load("WHERE t.date >= ? AND t.date < ?",
+                         (months[0] + "-01", _next_month(months[-1]) + "-01"))
     subs = [r for r in detect_recurring(txs)
             if r["nature"] == "optimisable" and r["category"] != "frais_bancaires"]
     return {
