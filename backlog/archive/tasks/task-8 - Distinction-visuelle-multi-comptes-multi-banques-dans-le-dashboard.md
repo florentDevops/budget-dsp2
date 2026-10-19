@@ -4,6 +4,7 @@ title: Distinction visuelle multi-comptes/multi-banques dans le dashboard
 status: To Do
 assignee: []
 created_date: '2026-09-29 19:52'
+updated_date: '2026-10-19 20:33'
 labels: []
 milestone: m-2
 dependencies: []
@@ -23,3 +24,9 @@ L'app gere deja plusieurs comptes en base (table accounts), mais /api/status et 
 - [ ] #1 Le dashboard affiche la banque et le nom du compte d'origine pour chaque operation quand plusieurs comptes sont connectes
 - [ ] #2 Un filtre par compte est disponible sur la vue mensuelle
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Clôturée comme doublon : ses deux critères (compte d'origine de chaque opération, filtre par compte) sont repris dans TASK-16 (AC #5).
+<!-- SECTION:NOTES:END -->

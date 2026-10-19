@@ -87,9 +87,11 @@ Le potentiel affiché en haut applique une part récupérable par catégorie (`S
 
 | Méthode | Route | Rôle |
 |---|---|---|
-| GET | `/api/status` | Comptes connectés, mois disponibles, options actives |
-| GET | `/api/banks?country=FR` | Banques disponibles chez Enable Banking |
-| POST | `/api/connect` | Démarre le consentement, renvoie l'URL de la banque |
+| GET | `/api/status` | Comptes connectés (avec rôle, nom affiché, produit), mois disponibles, options actives |
+| GET | `/api/banks?country=FR` | Banques disponibles chez Enable Banking, avec les types de connexion acceptés (`psu_types` : `personal`, `business`) |
+| POST | `/api/connect` | Démarre le consentement (`{"bank": ..., "psu_type": "personal" \| "business"}`), renvoie l'URL de la banque ; à répéter pour chaque banque |
+| GET | `/api/account-roles` | Rôles possibles d'un compte : courant, épargne, pro, crédit |
+| PUT | `/api/accounts/{uid}` | Change le rôle et/ou le nom affiché d'un compte (`{"role": "epargne", "label": "Livret enfants"}`, label vide = nom de la banque) |
 | GET | `/callback` | Retour de la banque, crée la session et synchronise |
 | POST | `/api/sync` | Récupère les nouvelles opérations et les classe |
 | GET | `/api/summary?month=YYYY-MM` | Totaux, pistes, surbrillances et opérations du mois |

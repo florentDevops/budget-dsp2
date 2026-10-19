@@ -10,11 +10,16 @@ CREATE TABLE IF NOT EXISTS accounts (
     uid          TEXT PRIMARY KEY,
     session_id   TEXT,
     bank         TEXT,
-    name         TEXT,
+    name         TEXT,                    -- titulaire(s), tel que renvoyé par la banque
     iban         TEXT,
     currency     TEXT,
     valid_until  TEXT,
-    last_sync    TEXT
+    last_sync    TEXT,
+    role         TEXT NOT NULL DEFAULT 'courant',  -- courant | epargne | pro | credit (accounts.ROLES)
+    label        TEXT,                    -- nom affiché choisi par l'utilisateur (NULL = produit ou titulaire)
+    product      TEXT,                    -- produit de la banque (« LIVRET A »)
+    cash_account_type TEXT,               -- CACC | SVGS | LOAN | ... (ISO 20022)
+    psu_type     TEXT                     -- personal | business : type du consentement
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -87,9 +92,20 @@ def _sync_merchant_keys(con: sqlite3.Connection) -> None:
         save_override(key, category, nature, "user", con)
 
 
+_ACCOUNT_COLUMNS = {
+    "role": "TEXT NOT NULL DEFAULT 'courant'", "label": "TEXT", "product": "TEXT",
+    "cash_account_type": "TEXT", "psu_type": "TEXT",
+}
+
+
 def _migrate(con: sqlite3.Connection) -> None:
-    """Bases anciennes : avant merchant_key (le nom affiché servait de clé), et avant
-    user_category (les corrections manuelles ne vivaient que dans merchant_overrides)."""
+    """Bases anciennes : avant merchant_key (le nom affiché servait de clé), avant
+    user_category (les corrections manuelles ne vivaient que dans merchant_overrides),
+    et avant le rôle des comptes (les comptes existants deviennent « courant »)."""
+    acc_cols = {r[1] for r in con.execute("PRAGMA table_info(accounts)")}
+    for col, decl in _ACCOUNT_COLUMNS.items():
+        if acc_cols and col not in acc_cols:
+            con.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
     tx_cols = {r[1] for r in con.execute("PRAGMA table_info(transactions)")}
     if tx_cols and "merchant_key" not in tx_cols:
         con.execute("ALTER TABLE transactions ADD COLUMN merchant_key TEXT")
@@ -131,14 +147,30 @@ def rows(sql: str, params: tuple = ()) -> list[dict]:
 
 
 def upsert_account(acc: dict) -> None:
+    """Une reconnexion renouvelle le consentement sans toucher au rôle ni au nom choisis."""
+    acc = {"role": "courant", "product": None, "cash_account_type": None, "psu_type": None, **acc}
     with connect() as con:
         con.execute(
-            """INSERT INTO accounts (uid, session_id, bank, name, iban, currency, valid_until)
-               VALUES (:uid, :session_id, :bank, :name, :iban, :currency, :valid_until)
+            """INSERT INTO accounts (uid, session_id, bank, name, iban, currency, valid_until,
+                                     role, product, cash_account_type, psu_type)
+               VALUES (:uid, :session_id, :bank, :name, :iban, :currency, :valid_until,
+                       :role, :product, :cash_account_type, :psu_type)
                ON CONFLICT(uid) DO UPDATE SET session_id=excluded.session_id,
-                   valid_until=excluded.valid_until""",
+                   valid_until=excluded.valid_until,
+                   product=COALESCE(excluded.product, product),
+                   cash_account_type=COALESCE(excluded.cash_account_type, cash_account_type),
+                   psu_type=COALESCE(excluded.psu_type, psu_type)""",
             acc,
         )
+
+
+def update_account(uid: str, fields: dict) -> int:
+    """fields : role et/ou label (label None = retour au nom renvoyé par la banque)."""
+    if not fields:
+        return len(rows("SELECT uid FROM accounts WHERE uid = ?", (uid,)))
+    sets = ", ".join(f"{k} = :{k}" for k in fields)  # clés fixées par l'appelant (role, label)
+    with connect() as con:
+        return con.execute(f"UPDATE accounts SET {sets} WHERE uid = :uid", {**fields, "uid": uid}).rowcount
 
 
 def insert_transactions(txs: list[dict]) -> int:

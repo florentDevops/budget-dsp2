@@ -35,3 +35,14 @@ test("re-cliquer une catégorie la retire, sans muter l'ensemble d'origine", () 
   assert.deepEqual([...toggleCategory(b, "courses")], ["abonnements"]);
   assert.deepEqual([...a], ["courses"]);
 });
+
+test("filtre par compte, combiné aux autres filtres", () => {
+  const txs = [
+    { id: "a", amount: -10, nature: "essentiel", category: "courses", account_uid: "perso" },
+    { id: "b", amount: -20, nature: "essentiel", category: "courses", account_uid: "joint" },
+    { id: "c", amount: 500, nature: "revenu", category: "revenus", account_uid: "joint" },
+  ];
+  assert.deepEqual(ids(filterTransactions(txs, "all", new Set(), "joint")), ["b", "c"]);
+  assert.deepEqual(ids(filterTransactions(txs, "essentiel", new Set(), "joint")), ["b"]);
+  assert.deepEqual(ids(filterTransactions(txs, "all", new Set(), null)), ["a", "b", "c"]);  // null : tous les comptes
+});
