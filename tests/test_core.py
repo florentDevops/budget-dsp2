@@ -403,3 +403,135 @@ def test_trends_page_is_served():
     page = client.get("/tendances")
     assert page.status_code == 200 and '<script src="/static/trends.js"></script>' in page.text
     assert 'href="/tendances"' in client.get("/").text
+
+
+# --- Bilan entrées / sorties et conseils du LLM ----------------------------------
+
+def _classify(db, rows):
+    with db.connect() as con:
+        for ids, cat, nat in rows:
+            con.execute(f"UPDATE transactions SET category = ?, nature = ? WHERE id IN ({ids})", (cat, nat))
+
+
+def _cashflow_db(tmp_path, monkeypatch):
+    db = _fresh_db(tmp_path, monkeypatch)
+    db.insert_transactions([
+        _raw(1, "EMPLOYEUR", "2026-07-28", 2500.0), _raw(2, "CARREFOUR", "2026-07-03", -300.0),
+        _raw(3, "EMPLOYEUR", "2026-08-28", 2500.0), _raw(4, "CARREFOUR", "2026-08-03", -2700.0),
+        _raw(5, "AMELI", "2026-08-12", 40.0),  # remboursement : compte en entrée
+        _raw(6, "LIVRET A", "2026-08-01", -500.0), _raw(7, "LIVRET A", "2026-08-20", 100.0),  # épargne nette 400
+        _raw(8, "COMPTE JOINT", "2026-08-15", -800.0),  # virement interne : ni entrée ni sortie
+        _raw(9, "MYSTERE", "2026-08-10", -42.0),  # pas encore classé : compte en sortie
+        _raw(10, "NETFLIX", "2026-06-08", -13.0), _raw(11, "NETFLIX", "2026-07-08", -13.0),
+        _raw(12, "NETFLIX", "2026-08-08", -13.0),
+    ])
+    _classify(db, [("'a:1','a:3'", "revenus", "revenu"), ("'a:5'", "remboursements", "revenu"),
+                   ("'a:2','a:4'", "courses", "essentiel"), ("'a:6','a:7'", "epargne", "epargne"),
+                   ("'a:8'", "virements", "transfert"), ("'a:10','a:11','a:12'", "abonnements", "optimisable")])
+    return db
+
+
+def test_cashflow_income_vs_spending_per_month(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+    _cashflow_db(tmp_path, monkeypatch)
+    body = TestClient(main.app).get("/api/cashflow").json()
+    assert body["months"] == ["2026-06", "2026-07", "2026-08"]
+    assert body["income"] == [0.0, 2500.0, 2540.0]
+    assert body["spent"] == [13.0, 313.0, 2755.0]
+    assert body["savings"] == [0.0, 0.0, 400.0]
+    assert body["partial"] is None
+
+
+def test_cashflow_flags_current_month_as_partial(tmp_path, monkeypatch):
+    from app import insights
+    db = _fresh_db(tmp_path, monkeypatch)
+    today = date.today()
+    db.insert_transactions([_raw(1, "CARREFOUR", today.isoformat(), -20.0),
+                            _raw(2, "CARREFOUR", (today.replace(day=1) - timedelta(days=1)).isoformat(), -20.0)])
+    assert insights.cashflow()["partial"] == today.isoformat()[:7]
+
+
+def test_cashflow_empty_without_transactions(tmp_path, monkeypatch):
+    from app import insights
+    _fresh_db(tmp_path, monkeypatch)
+    assert insights.cashflow() == {"months": [], "income": [], "spent": [], "savings": [], "partial": None}
+
+
+def test_advice_context_holds_only_aggregates_of_complete_months(tmp_path, monkeypatch):
+    import json
+    from app import insights
+    db = _cashflow_db(tmp_path, monkeypatch)
+    db.insert_transactions([_raw(20, "CARREFOUR", date.today().isoformat(), -9999.0)])  # mois en cours ignoré
+    ctx = insights.advice_context(2)
+    assert [m["mois"] for m in ctx["mois"]] == ["2026-07", "2026-08"]
+    assert ctx["mois"][1] == {"mois": "2026-08", "entrees": 2540.0, "sorties": 2755.0, "solde": -215.0, "epargne": 400.0}
+    assert ctx["moyennes"]["solde"] == round((2187.0 - 215.0) / 2, 2)
+    assert ctx["mois_en_deficit"] == 1
+    cats = {c["categorie"]: c for c in ctx["depenses_par_categorie"]}
+    assert cats["Courses"]["moyenne_mensuelle"] == 1500.0 and cats["Courses"]["nature"] == "essentiel"
+    assert "Épargne" not in cats and "Revenus" not in cats
+    sent = json.dumps(ctx, ensure_ascii=False).upper()
+    for secret in ("CARREFOUR", "NETFLIX", "EMPLOYEUR", "LIVRET", "MYSTERE", "PRLV", "-03", "-28"):
+        assert secret not in sent  # ni marchand, ni libellé, ni jour précis
+
+
+def test_advice_context_none_without_complete_month(tmp_path, monkeypatch):
+    from app import insights
+    db = _fresh_db(tmp_path, monkeypatch)
+    assert insights.advice_context(6) is None
+    db.insert_transactions([_raw(1, "CARREFOUR", date.today().isoformat(), -20.0)])
+    assert insights.advice_context(6) is None
+
+
+def test_advise_parses_llm_answer(monkeypatch):
+    from app import config, llm
+    monkeypatch.setattr(config.settings, "llm_provider", "ollama")
+    seen = {}
+
+    def fake_chat(system, user, **kw):
+        seen["user"] = user
+        return 'Voici : {"synthese": "Tu dépenses plus que tu ne gagnes.", "conseils": ["Revois les courses", "Coupe un abonnement"]}'
+    monkeypatch.setitem(llm._CHAT, "ollama", fake_chat)
+    out = llm.advise({"mois": [{"mois": "2026-08", "solde": -215.0}]})
+    assert out == {"synthese": "Tu dépenses plus que tu ne gagnes.", "conseils": ["Revois les courses", "Coupe un abonnement"]}
+    assert '"solde": -215.0' in seen["user"]
+
+    monkeypatch.setitem(llm._CHAT, "ollama", lambda system, user, **kw: "Réponse libre, sans JSON.")
+    assert llm.advise({}) == {"synthese": "Réponse libre, sans JSON.", "conseils": []}
+
+    def boom(system, user, **kw):
+        raise ConnectionError("ollama absent")
+    monkeypatch.setitem(llm._CHAT, "ollama", boom)
+    assert llm.advise({}) is None
+
+
+def test_classification_goes_through_shared_chat(monkeypatch):
+    from app import config, llm
+    monkeypatch.setattr(config.settings, "llm_provider", "ollama")
+    monkeypatch.setitem(llm._CHAT, "ollama", lambda system, user, **kw: '{"UBER EATS": "livraison"}')
+    assert llm.classify_merchants(["UBER EATS"]) == {"UBER EATS": "livraison"}
+
+
+def test_api_advice(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import config, llm, main
+    _cashflow_db(tmp_path, monkeypatch)
+    client = TestClient(main.app)
+
+    monkeypatch.setattr(config.settings, "llm_provider", "gemini")
+    monkeypatch.setattr(config.settings, "gemini_api_key", "")
+    assert client.post("/api/advice", json={"months": 6}).status_code == 400  # pas de clé
+
+    monkeypatch.setattr(config.settings, "gemini_api_key", "k")
+    seen = []
+    monkeypatch.setattr(llm, "advise", lambda ctx: seen.append(ctx) or {"synthese": "ok", "conseils": ["a"]})
+    r = client.post("/api/advice", json={"months": 12})
+    assert r.status_code == 200
+    assert r.json()["synthese"] == "ok" and r.json()["months"] == ["2026-06", "2026-07", "2026-08"]
+    assert r.json()["provider"] == "gemini"
+    assert len(seen[0]["mois"]) == 3
+
+    monkeypatch.setattr(llm, "advise", lambda ctx: None)
+    assert client.post("/api/advice", json={"months": 6}).status_code == 502
+    assert client.post("/api/advice", json={"months": 0}).status_code == 422

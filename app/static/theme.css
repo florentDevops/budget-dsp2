@@ -28,6 +28,10 @@
   --cat-10: #79472c;
   --cat-11: #006071;
   --cat-12: #a686fc;
+  /* Bilan entrées / sorties : bleu / rouge (le couple vert / rouge échoue en deutéranopie,
+     ΔE 6,9) ; l'écart est teinté --keep / --danger, toujours doublé d'un solde signé. */
+  --flow-in: #2a78d6;
+  --flow-out: #e34948;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -55,6 +59,8 @@
     --cat-10: #7f5b2b;
     --cat-11: #6cb8cb;
     --cat-12: #90bd30;
+    --flow-in: #3987e5;
+    --flow-out: #e66767;
   }
 }
 * { box-sizing: border-box; }

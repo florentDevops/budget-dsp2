@@ -269,6 +269,87 @@ def category_trends() -> dict:
     return {"months": months, "categories": sorted(categories, key=lambda c: -c["total"])}
 
 
+def cashflow() -> dict:
+    """Entrées vs sorties pour chaque mois disponible (ordre chronologique).
+
+    Entrées : nature revenu (salaires, remboursements). Sorties : la consommation, comme
+    dans category_trends (épargne et virements internes exclus, non classé inclus).
+    Épargne : versements nets vers l'épargne. Le mois en cours est signalé partiel.
+    """
+    months = sorted(available_months())
+    index = {m: i for i, m in enumerate(months)}
+    income, spent, savings = ([0.0] * len(months) for _ in range(3))
+    for t in db.rows("SELECT date, amount, nature FROM transactions"):
+        i = index[_month(t["date"])]
+        if t["nature"] == "epargne":
+            savings[i] -= t["amount"]
+        elif t["amount"] > 0:
+            if t["nature"] == "revenu":
+                income[i] += t["amount"]
+        elif t["nature"] != "transfert":
+            spent[i] -= t["amount"]
+    current = date.today().isoformat()[:7]
+    return {
+        "months": months,
+        "income": [round(v, 2) for v in income],
+        "spent": [round(v, 2) for v in spent],
+        "savings": [round(v, 2) for v in savings],
+        "partial": current if months and months[-1] == current else None,
+    }
+
+
+ADVICE_TOP_CATEGORIES = 12      # catégories détaillées dans le contexte envoyé au LLM
+
+
+def advice_context(n: int) -> dict | None:
+    """Agrégats des n derniers mois complets, seule matière envoyée au LLM pour ses conseils.
+
+    Uniquement des totaux par mois et par catégorie : aucun marchand, libellé ni jour précis.
+    """
+    flow = cashflow()
+    last = len(flow["months"]) - (flow["partial"] is not None)
+    start = max(0, last - n)
+    months = flow["months"][start:last]
+    if not months:
+        return None
+    k = len(months)
+    rows = [{"mois": m, "entrees": flow["income"][i], "sorties": flow["spent"][i],
+             "solde": round(flow["income"][i] - flow["spent"][i], 2), "epargne": flow["savings"][i]}
+            for i, m in zip(range(start, last), months)]
+
+    trends = category_trends()
+    cols = [trends["months"].index(m) for m in months]
+    by_cat, by_nature, potential = [], defaultdict(float), 0.0
+    for c in trends["categories"]:
+        amounts = [c["amounts"][i] for i in cols]
+        if not sum(amounts):
+            continue
+        monthly = sum(amounts) / k
+        by_nature[c["nature"]] += monthly
+        potential += monthly * SAVINGS_RATE.get(c["category"], 0.0)
+        half = k // 2
+        before, after = amounts[:half], amounts[half:]
+        evol = (round(100 * (mean(after) / mean(before) - 1)) if half and mean(before) else None)
+        by_cat.append({"categorie": c["label"], "nature": c["nature"],
+                       "moyenne_mensuelle": round(monthly, 2), "evolution_pct": evol})
+    by_cat.sort(key=lambda c: -c["moyenne_mensuelle"])
+
+    txs = db.rows("SELECT * FROM transactions WHERE date >= ? AND date < ?",
+                  (months[0] + "-01", _next_month(months[-1]) + "-01"))
+    subs = [r for r in detect_recurring(txs)
+            if r["nature"] == "optimisable" and r["category"] != "frais_bancaires"]
+    return {
+        "periode_mois": k,
+        "mois": rows,
+        "moyennes": {key: round(sum(r[key] for r in rows) / k, 2) for key in ("entrees", "sorties", "solde", "epargne")},
+        "mois_en_deficit": sum(r["solde"] < 0 for r in rows),
+        "sorties_par_nature": {nat: round(v, 2) for nat, v in by_nature.items()},
+        "depenses_par_categorie": by_cat[:ADVICE_TOP_CATEGORIES],
+        "abonnements": {"nombre": len(subs), "total_mensuel": round(sum(r["monthly"] for r in subs), 2)},
+        "potentiel_economies_mensuel": round(potential, 2),
+    }
+
+
 def _next_month(month: str) -> str:
     y, m = map(int, month.split("-"))
     return f"{y + (m == 12):04d}-{(m % 12) + 1:02d}"

@@ -8,9 +8,9 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from . import classifier, db, demo, insights
+from . import classifier, db, demo, insights, llm
 from .categories import CATEGORIES
 from .config import settings
 from .enable_banking import EnableBankingClient, EnableBankingError, normalize_transaction
@@ -181,6 +181,30 @@ def summary(month: str | None = None):
 @app.get("/api/trends")
 def trends():
     return insights.category_trends()
+
+
+@app.get("/api/cashflow")
+def cashflow():
+    return insights.cashflow()
+
+
+class AdviceBody(BaseModel):
+    months: int = Field(6, ge=1, le=36)
+
+
+@app.post("/api/advice")
+def advice(body: AdviceBody):
+    """Synthèse et conseils du LLM sur les derniers mois complets (agrégats seulement)."""
+    if not settings.llm_enabled:
+        raise HTTPException(400, "Aucun LLM configuré : renseigne LLM_PROVIDER et sa clé dans .env.")
+    context = insights.advice_context(body.months)
+    if context is None:
+        raise HTTPException(400, "Pas encore de mois complet à analyser.")
+    answer = llm.advise(context)
+    if answer is None:
+        raise HTTPException(502, f"Le LLM ({settings.llm_provider}) n'a pas répondu, réessaie dans un instant.")
+    return {**answer, "months": [m["mois"] for m in context["mois"]],
+            "provider": settings.llm_provider, "model": settings.llm_model}
 
 
 class OverrideBody(BaseModel):

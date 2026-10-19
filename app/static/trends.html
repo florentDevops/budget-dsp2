@@ -76,6 +76,37 @@ tfoot th { text-align: left; position: sticky; left: 0; background: var(--surfac
 
 .empty { background: var(--surface); border-radius: 12px; padding: 24px 20px; color: var(--muted); }
 .empty a { color: var(--ink); }
+
+/* Bilan entrées / sorties */
+#period { margin: 0 0 22px; }
+#flow { margin-top: 0; }
+tbody.flow tr { cursor: default; }
+tbody.flow tr:hover th { text-decoration: none; }
+.section-title { font-size: .8rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.keys { display: flex; flex-wrap: wrap; gap: 14px; margin: 18px 0 10px; font-size: .86rem; color: var(--muted); list-style: none; padding: 0; }
+.keys li { display: inline-flex; align-items: center; gap: 7px; }
+.keys i { display: inline-block; flex: none; }
+.keys i.ln { width: 16px; height: 2px; border-radius: 1px; }
+.keys i.ar { width: 12px; height: 10px; border-radius: 3px; }
+#flowchart svg { display: block; width: 100%; overflow: visible; }
+#flowchart text { font: 400 12px "IBM Plex Sans", system-ui, sans-serif; fill: var(--muted); font-variant-numeric: tabular-nums; }
+#flowchart text.v { fill: var(--ink); font-weight: 500; }
+#flowchart text.end { fill: var(--ink); font-weight: 500; }
+#flowchart .grid { stroke: var(--rule); stroke-width: 1; }
+#flowchart .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+#flowchart .col { fill: transparent; cursor: pointer; }
+.tip div.t.neg span:last-child { font-weight: 700; }
+td.neg { font-weight: 600; }
+
+.advice { background: var(--surface); border-radius: 12px; padding: 16px 18px; margin-top: 16px; }
+.advice h3 { margin: 0 0 6px; font-size: .98rem; font-weight: 600; }
+.advice .btn { border: 1px solid var(--ink); background: var(--ink); color: var(--paper); border-radius: 999px; padding: 6px 14px; font-size: .9rem; cursor: pointer; }
+.advice .btn[disabled] { opacity: .6; cursor: progress; }
+.advice .note { color: var(--muted); font-size: .84rem; margin-top: 8px; max-width: 62ch; }
+.advice .out { margin-top: 12px; max-width: 64ch; }
+.advice .out ul { margin: 10px 0 0; padding-left: 20px; }
+.advice .out li { margin: 4px 0; }
+.advice .err { color: var(--danger); margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -84,11 +115,14 @@ tfoot th { text-align: left; position: sticky; left: 0; background: var(--surfac
     <h1>Tendances</h1>
     <a href="/">← Mois en cours</a>
   </header>
-  <div id="app"></div>
+  <div id="period"></div>
+  <section id="flow"></section>
+  <section id="app"></section>
 </main>
 
 <script src="/static/colors.js"></script>
 <script src="/static/trends.js"></script>
+<script src="/static/cashflow.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const eur = (n) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
@@ -105,7 +139,8 @@ const fill = (c) => c === "inconnu" ? "url(#hatch)" : c === "autres" ? "var(--ot
   : (CAT_COLOR[c] || (c === state.focus ? "var(--ink)" : "var(--other)"));
 const swatch = (c) => `<i class="sw ${c === "inconnu" ? "hatch" : ""}" style="background:${fill(c) === "url(#hatch)" ? "transparent" : fill(c)}"></i>`;
 
-let state = { trends: null, range: 12, focus: new URLSearchParams(location.search).get("cat"), hover: null };  // /tendances?cat=courses
+let state = { trends: null, cashflow: null, range: 12, focus: new URLSearchParams(location.search).get("cat"), hover: null,
+  advice: {}, adviceLoading: null };  // /tendances?cat=courses ; advice : réponse du LLM par période
 
 function view() {
   const v = lastMonths(state.trends, state.range);
@@ -114,15 +149,16 @@ function view() {
 }
 
 async function boot() {
-  const res = await fetch("/api/trends");
-  state.trends = await res.json();
+  const [trends, cashflow] = await Promise.all(["/api/trends", "/api/cashflow"].map(u => fetch(u).then(r => r.json())));
+  state.trends = trends;
+  state.cashflow = cashflow;
   if (!state.trends.months.length) {
     $("#app").innerHTML = `<p class="empty">Aucune opération pour l'instant. <a href="/">Retour au tableau de bord</a> pour connecter ta banque ou charger la démo.</p>`;
     return;
   }
   render();
   let t;
-  addEventListener("resize", () => { clearTimeout(t); t = setTimeout(renderChart, 100); });
+  addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { renderFlowChart(); renderChart(); }, 100); });
 }
 
 function headline(v) {
@@ -148,12 +184,14 @@ function headline(v) {
 function render() {
   const v = view();
   const focusLabel = (c) => c.category === "autres" ? `Autres (${c.members.length})` : c.label;
+  $("#period").innerHTML = state.trends.months.length > 6 ? `<div class="seg" role="group" aria-label="Période">
+      ${RANGES.map(([k, l]) => `<button data-range="${k}" aria-pressed="${state.range === k}">${l}</button>`).join("")}
+    </div>` : "";
+  renderFlow();
   $("#app").innerHTML = `
+    <h2 class="section-title">Dépenses par catégorie</h2>
     <div id="head">${headline(v)}</div>
     <div class="controls">
-      ${state.trends.months.length > 6 ? `<div class="seg" role="group" aria-label="Période">
-        ${RANGES.map(([k, l]) => `<button data-range="${k}" aria-pressed="${state.range === k}">${l}</button>`).join("")}
-      </div>` : ""}
       <span class="hint">Choisis une catégorie pour la poser sur l'axe et comparer les mois.</span>
     </div>
     <ul class="legend ${state.focus ? "has-focus" : ""}" aria-label="Catégories">
@@ -263,6 +301,173 @@ function showTip(v, stack, i, col) {
   tip.innerHTML = `<h3>${monthLong(v.months[i])}</h3>
     ${rows.map(s => `<div class="${s.category === state.focus ? "f" : ""}">${swatch(s.category)}<span>${esc(s.category === "autres" ? `Autres (${s.members.length})` : s.label)}</span><span>${eur(s.amounts[i])}</span></div>`).join("")}
     <div class="t"><span>Total</span><span>${eur(sum(rows.map(s => s.amounts[i])))}</span></div>`;
+  tip.hidden = false;
+  const card = tip.parentElement.getBoundingClientRect(), r = col.getBoundingClientRect();
+  const left = r.left - card.left + r.width / 2 + 14;
+  tip.style.left = (left + tip.offsetWidth > card.width ? r.left - card.left + r.width / 2 - tip.offsetWidth - 14 : left) + "px";
+  tip.style.top = "12px";
+}
+
+// --- Entrées / sorties ---------------------------------------------------------
+
+const signed = (n) => (n > 0 ? "+" : n < 0 ? "−" : "") + eur(Math.abs(n));
+const adviceMonths = () => state.range || 36;
+
+function flowHeadline(f) {
+  const done = f.months.map((_, i) => i).filter(i => i !== f.partialIndex);
+  if (!done.length) return `<p class="lead">Premier mois en cours : le bilan s'affichera une fois un mois complet.</p>`;
+  const avg = (xs) => sum(done.map(i => xs[i])) / done.length;
+  const net = avg(f.net), deficits = done.filter(i => f.net[i] < 0);
+  const lead = net < 0
+    ? `Sur ${done.length} mois, tes sorties dépassent tes entrées de ${eur(-net)} par mois en moyenne.`
+    : `Sur ${done.length} mois, il te reste ${eur(net)} par mois en moyenne une fois les dépenses payées.`;
+  const months = deficits.map(i => monthShort(f.months[i], false)).join(", ");
+  const savings = avg(f.savings);
+  return `<p class="lead">${lead}</p>
+    <p class="sub">${deficits.length ? `${deficits.length} mois en déficit sur ${done.length} (${months}).` : "Aucun mois en déficit."}
+    ${savings > 0 ? ` Épargne versée à part : ${eur(savings)} par mois en moyenne, non comptée dans les sorties.` : ""}
+    ${f.partialIndex >= 0 ? ` Le mois de ${monthLong(f.months[f.partialIndex])} est en cours : en pointillés, hors moyennes.` : ""}</p>`;
+}
+
+function renderFlow() {
+  const f = flowView(state.cashflow, state.range);
+  const n = adviceMonths();
+  const complete = state.cashflow.months.length - (state.cashflow.partial ? 1 : 0);
+  const k = Math.min(n, complete);
+  const a = state.advice[n];
+  const loading = state.adviceLoading === n;
+  $("#flow").innerHTML = `
+    <h2 class="section-title">Entrées et sorties</h2>
+    ${flowHeadline(f)}
+    <ul class="keys" aria-label="Légende">
+      <li><i class="ln" style="background:var(--flow-in)"></i>Entrées (salaires, remboursements)</li>
+      <li><i class="ln" style="background:var(--flow-out)"></i>Sorties (hors épargne et virements internes)</li>
+      <li><i class="ar" style="background:color-mix(in srgb, var(--keep) 22%, transparent)"></i>Excédent</li>
+      <li><i class="ar" style="background:color-mix(in srgb, var(--danger) 26%, transparent)"></i>Déficit</li>
+    </ul>
+    <div class="card"><div id="flowchart"></div><div class="tip" id="flowtip" hidden></div></div>
+    <div class="scroll">${renderFlowTable(f)}</div>
+    ${f.partialIndex >= 0 ? `<p class="hint" style="margin-top:6px">* mois en cours, incomplet : exclu des moyennes.</p>` : ""}
+    <div class="advice">
+      <h3>Conseils sur ${k > 1 ? `les ${k} derniers mois complets` : "le dernier mois complet"}</h3>
+      ${k ? `<button class="btn" id="ask" ${loading ? "disabled" : ""}>${loading ? "Analyse en cours…" : a && !a.error ? "Relancer l'analyse" : "Demander une synthèse"}</button>` : `<p class="note">Disponible dès le premier mois complet.</p>`}
+      <p class="note">Le LLM configuré pour la catégorisation reçoit uniquement des totaux par mois et par catégorie : aucun nom de marchand, libellé ni IBAN. Le mois en cours n'est pas pris en compte.${loading ? " Un modèle local peut mettre une minute." : ""}</p>
+      ${a && a.error ? `<p class="err">${esc(a.error)}</p>` : ""}
+      ${a && !a.error ? `<div class="out"><p>${esc(a.synthese)}</p>
+        ${a.conseils.length ? `<ul>${a.conseils.map(c => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
+        <p class="note">${esc(a.provider)} · ${esc(a.model)} · ${a.months.length} mois analysés</p></div>` : ""}
+    </div>`;
+  if (k) $("#ask").onclick = () => askAdvice(n);
+  renderFlowChart();
+}
+
+async function askAdvice(n) {
+  state.adviceLoading = n;
+  renderFlow();
+  try {
+    const r = await fetch("/api/advice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ months: n }) });
+    const body = await r.json().catch(() => ({}));
+    state.advice[n] = r.ok ? body : { error: typeof body.detail === "string" ? body.detail : `Erreur ${r.status}` };
+  } catch {
+    state.advice[n] = { error: "Le serveur ne répond pas." };
+  }
+  state.adviceLoading = null;
+  renderFlow();
+}
+
+function renderFlowTable(f) {
+  const done = f.months.map((_, i) => i).filter(i => i !== f.partialIndex);
+  const avg = (xs) => done.length ? sum(done.map(i => xs[i])) / done.length : 0;
+  const yearAt = (i) => i === 0 || f.months[i].endsWith("-01");
+  const row = (label, xs, cell = (x) => `<td>${eur(x)}</td>`, avgCell = (x) => eur(x)) =>
+    `<tr><th scope="row">${label}</th>${xs.map(cell).join("")}<td class="avg">${avgCell(avg(xs))}</td></tr>`;
+  const tint = (x) => x ? `background:color-mix(in srgb, var(${x < 0 ? "--danger" : "--keep"}) ${x < 0 ? 18 : 12}%, transparent)` : "";
+  return `<table>
+    <thead><tr><th scope="col"></th>${f.months.map((m, i) => `<th scope="col">${monthShort(m, yearAt(i))}${i === f.partialIndex ? "*" : ""}</th>`).join("")}<th scope="col">Moyenne</th></tr></thead>
+    <tbody class="flow">
+      ${row("Entrées", f.income)}
+      ${row("Sorties", f.spent)}
+      ${row("Solde", f.net, (x, i) => i === f.partialIndex ? `<td class="z">${signed(x)}</td>` : `<td class="${x < 0 ? "neg" : ""}" style="${tint(x)}">${signed(x)}</td>`, signed)}
+      ${row("Épargne", f.savings)}
+    </tbody>
+  </table>`;
+}
+
+function renderFlowChart() {
+  const f = flowView(state.cashflow, state.range);
+  const el = $("#flowchart");
+  if (!el) return;
+  const W = el.clientWidth, H = 260;
+  const n = f.months.length;
+  const band = (W - 50 - 70) / n;
+  const showNet = band >= 46;
+  const m = { top: 12, right: 70, bottom: showNet ? 42 : 26, left: 50 };
+  const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
+  const max = Math.max(...f.income, ...f.spent);
+  const step = niceStep(max);
+  const yMax = Math.ceil(max / step) * step || step;
+  const y = (v) => m.top + ih - (v / yMax) * ih;
+  const x = (t) => m.left + band * t + band / 2;
+  const showYear = (i) => i === 0 || f.months[i].endsWith("-01");
+  const labelEvery = Math.ceil(n / Math.max(1, Math.floor(iw / 52)));
+  const last = f.partialIndex >= 0 ? f.partialIndex - 1 : n - 1;  // dernier mois complet
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Entrées et sorties par mois, en lignes, écart teinté selon excédent ou déficit">`;
+  for (let t = 0; t <= yMax; t += step) {
+    svg += `<line class="grid" x1="${m.left}" x2="${W - m.right}" y1="${y(t)}" y2="${y(t)}"/>
+      <text x="${m.left - 8}" y="${y(t) + 4}" text-anchor="end">${eur(t)}</text>`;
+  }
+  // Le mois en cours (salaire souvent pas encore tombé) n'est pas teinté : son « déficit » n'en est pas un.
+  for (const r of gapRegions(f.income.slice(0, last + 1), f.spent.slice(0, last + 1))) {
+    if (r.pts.length < 2) continue;
+    const d = "M" + r.pts.map(p => `${x(p.t)},${y(p.a)}`).join("L") + "L" + [...r.pts].reverse().map(p => `${x(p.t)},${y(p.b)}`).join("L") + "Z";
+    svg += `<path d="${d}" style="fill:var(${r.sign < 0 ? "--danger" : "--keep"});fill-opacity:${r.sign < 0 ? .26 : .2}"/>`;
+  }
+  const line = (xs, color) => {
+    const pts = xs.map((v, i) => `${x(i)},${y(v)}`);
+    let out = last >= 1 ? `<polyline points="${pts.slice(0, last + 1).join(" ")}" style="fill:none;stroke:${color};stroke-width:2;stroke-linejoin:round"/>` : "";
+    if (f.partialIndex > 0) out += `<polyline points="${pts.slice(last, n).join(" ")}" style="fill:none;stroke:${color};stroke-width:2;stroke-dasharray:4 4"/>`;
+    xs.forEach((v, i) => {
+      out += `<circle cx="${x(i)}" cy="${y(v)}" r="4" style="fill:${i === f.partialIndex ? "var(--surface)" : color};stroke:${i === f.partialIndex ? color : "var(--surface)"};stroke-width:2"/>`;
+    });
+    return out;
+  };
+  svg += line(f.spent, "var(--flow-out)") + line(f.income, "var(--flow-in)");
+  // Étiquettes directes en bout de courbe, écartées si les deux valeurs sont proches
+  let yi = y(f.income[n - 1]) + 4, ys = y(f.spent[n - 1]) + 4;
+  if (Math.abs(yi - ys) < 14) {
+    const mid = (yi + ys) / 2, up = f.income[n - 1] >= f.spent[n - 1];
+    yi = mid + (up ? -7 : 7); ys = mid + (up ? 7 : -7);
+  }
+  svg += `<text class="end" x="${x(n - 1) + 10}" y="${yi}">Entrées</text><text class="end" x="${x(n - 1) + 10}" y="${ys}">Sorties</text>`;
+  f.months.forEach((mo, i) => {
+    if (i % labelEvery === 0 || i === n - 1) {
+      svg += `<text x="${x(i)}" y="${H - m.bottom + 16}" text-anchor="middle">${monthShort(mo, showYear(i))}${i === f.partialIndex ? "*" : ""}</text>`;
+    }
+    if (showNet) svg += `<text class="${i === f.partialIndex ? "" : "v"}" x="${x(i)}" y="${H - m.bottom + 33}" text-anchor="middle">${i === f.partialIndex ? "en cours" : signed(f.net[i])}</text>`;
+    svg += `<rect class="col" data-i="${i}" x="${m.left + band * i}" y="${m.top}" width="${band}" height="${ih}"/>`;
+  });
+  el.innerHTML = svg + "</svg>";
+
+  const tip = $("#flowtip");
+  el.querySelectorAll(".col").forEach(c => {
+    const show = () => showFlowTip(f, +c.dataset.i, c, x(+c.dataset.i), m.top, m.top + ih);
+    c.onmouseenter = c.onclick = show;
+    c.onmouseleave = () => { tip.hidden = true; el.querySelector(".cross")?.remove(); };
+  });
+}
+
+function showFlowTip(f, i, col, cx, y0, y1) {
+  const tip = $("#flowtip");
+  const svg = col.ownerSVGElement;
+  svg.querySelector(".cross")?.remove();
+  svg.insertAdjacentHTML("afterbegin", `<line class="cross" x1="${cx}" x2="${cx}" y1="${y0}" y2="${y1}"/>`);
+  const key = (c) => `<i class="sw" style="background:${c}"></i>`;
+  tip.innerHTML = `<h3>${monthLong(f.months[i])}${i === f.partialIndex ? " (en cours)" : ""}</h3>
+    <div>${key("var(--flow-in)")}<span>Entrées</span><span>${eur(f.income[i])}</span></div>
+    <div>${key("var(--flow-out)")}<span>Sorties</span><span>${eur(f.spent[i])}</span></div>
+    <div class="t ${f.net[i] < 0 ? "neg" : ""}"><span>Solde</span><span>${signed(f.net[i])}</span></div>
+    ${f.savings[i] ? `<div class="t"><span>Épargne versée</span><span>${eur(f.savings[i])}</span></div>` : ""}`;
   tip.hidden = false;
   const card = tip.parentElement.getBoundingClientRect(), r = col.getBoundingClientRect();
   const left = r.left - card.left + r.width / 2 + 14;
